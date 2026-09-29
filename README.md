@@ -1,13 +1,20 @@
 # Kahawa
 
-Cafe storefront and staff tools for a Nairobi coffee shop. Customers browse the menu, build a bag, and pay with M-Pesa or order from a table QR. Staff run the floor from `/manage`: live orders, sales, catalog, packages, tables, gift cards, and team.
+Kahawa is a cafe system for one shop: a public storefront and a staff floor at `/manage`. Customers order for pickup, delivery, or the table they scanned. Staff take payment, move orders through the kitchen, and keep the catalog.
 
-## Requirements
+## How it is built
 
-- Python 3.10+
-- Node.js (only to build the CSS)
+One Django app, `kahawa`, on SQLite, with the clock set to Africa/Nairobi. The storefront and Manage are separate template shells. Customer accounts and staff logins are separate too. Staff actions are gated by roles, not by `is_staff` alone.
 
-## Setup
+The bag lives in the browser. The server prices the order again on checkout, so the client total is only a preview. Listed prices already include VAT. Tax codes follow KRA eTIMS (`A`–`E`); the VAT line on a receipt is the tax inside the price, not an amount added on top.
+
+M-Pesa is Daraja STK Push. `MPESA_MODE=mock` completes a payment locally. `live` uses the `MPESA_*` keys. SMS goes through Africa's Talking, or prints in the terminal when `SMS_PROVIDER=console`.
+
+Manage sales export is a ReportLab PDF. Receipts and the kitchen ticket are print pages, and they use `static/images/kahawa-logo.png`. The eTIMS box on a receipt stays empty. `ETIMS_TIN`, `ETIMS_BHF_ID`, `ETIMS_DEVICE_SERIAL`, and `ETIMS_CMC_KEY` are loaded for a later OSCU connection and are not called yet.
+
+Styles are Tailwind 3, compiled to `static/css/kahawa.css`. Pages do not load Tailwind from a CDN. `npm run build:css` rebuilds that file. Manage lists are tables on a wide screen and cards on a phone. Drawers rise from the bottom on a phone and from the right on a larger screen.
+
+## Run
 
 ```powershell
 python -m venv .venv
@@ -21,33 +28,4 @@ npm run build:css
 python manage.py runserver
 ```
 
-On macOS or Linux, activate the virtual environment with `source .venv/bin/activate` and copy the env file with `cp .env.example .env`.
-
-The store is at [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Manage is at [http://127.0.0.1:8000/manage/](http://127.0.0.1:8000/manage/).
-
-After seeding, sign in to Manage with:
-
-| Role | Username | Password |
-| --- | --- | --- |
-| Admin | `staff` | `kahawa2026!` |
-| Barista | `barista` | `barista2026!` |
-
-`seed_kahawa` is safe to run again. It refreshes the demo catalog, tables, and those two logins.
-
-## Configuration
-
-Settings come from `.env`. Start from `.env.example` and do not commit `.env`.
-
-- `DEBUG` and `SECRET_KEY` — local defaults are for development only.
-- `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` — include your ngrok address if you open the site through a tunnel. `https://*.ngrok-free.app` is already listed so a new free tunnel can still submit login forms.
-- `SMS_PROVIDER=console` prints texts in the terminal. Set `africastalking` and the `AT_*` keys to send real SMS.
-- `MPESA_MODE=mock` simulates STK push. `live` uses Daraja with the `MPESA_*` keys. Leave `MPESA_CALLBACK_SECRET` empty while mocking.
-- `ETIMS_*` holds the KRA OSCU PIN, branch id, device serial, and communication key. Leave them blank until the device is initialised. Receipts stay unmarked.
-
-While you change Tailwind classes, run `npm run watch:css`. Commit the built file `static/css/kahawa.css`; the pages do not load Tailwind from a CDN.
-
-## What is in the box
-
-- Menu, bag, pickup, delivery, and dine-in from a table QR (`/t/<code>/`).
-- M-Pesa checkout, receipts, and a kitchen ticket.
-- Manage: live ops, sales PDF, products, packages, categories, tables, gift cards, and team roles.
+Copy `.env.example` to `.env` and keep `.env` out of git. `seed_kahawa` loads the demo catalog and prints the staff logins.

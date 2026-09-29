@@ -28,6 +28,7 @@ node_modules/
 
 # Logs and coverage
 *.log
+_chrome_*.txt
 .coverage
 htmlcov/
 .pytest_cache/
