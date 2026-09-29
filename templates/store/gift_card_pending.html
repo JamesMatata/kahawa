@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Paying for gift card{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-2xl px-4 py-14 sm:px-6">
+  <div class="rounded-2xl bg-cream-50 p-8 text-center ring-1 ring-caramel-400/15 sm:p-12">
+    <span id="gift-icon" class="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-caramel-600 text-cream-50">
+      <i data-lucide="loader-circle" class="h-7 w-7 animate-spin"></i>
+    </span>
+    <h1 class="mt-2 font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">
+      Waiting for payment
+    </h1>
+    <p class="mt-3 text-sm font-semibold text-espresso-700/70">
+      Gift card
+      <span class="rounded-full bg-espresso-800 px-3 py-1 font-extrabold text-caramel-400">{{ gift.code }}</span>
+    </p>
+    <p id="gift-status-text" class="mt-4 text-sm font-semibold text-espresso-700/65">
+      Check your phone and enter your M-Pesa PIN to confirm.
+    </p>
+    <p class="mt-2 text-lg font-extrabold text-espresso-900">
+      Total: KSh {{ gift.initial_balance|floatformat:0 }}
+    </p>
+
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <a href="{% url 'kahawa:gift_card_buy' %}" class="inline-flex items-center gap-2 rounded-full border border-espresso-800/15 px-6 py-3 text-sm font-extrabold text-espresso-800 hover:bg-cream-100">
+        Back to gift cards
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const statusUrl = '{% url "kahawa:gift_card_status" code=gift.code %}';
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(statusUrl, { headers: { Accept: 'application/json' } });
+        const data = await res.json();
+        if (!data.ok) return;
+        if (data.payment_status === 'PAID' && data.redirect_url) {
+          clearInterval(timer);
+          window.location.href = data.redirect_url;
+        } else if (data.payment_status === 'FAILED') {
+          clearInterval(timer);
+          document.getElementById('gift-status-text').textContent =
+            'Payment failed or timed out. You can retry below — the card is saved but inactive until paid.';
+          const icon = document.getElementById('gift-icon');
+          if (icon) {
+            icon.className = 'mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-700';
+            icon.innerHTML = '<i data-lucide="x" class="h-7 w-7"></i>';
+          }
+          const actions = document.querySelector('.mt-8.flex');
+          if (actions && !document.getElementById('gift-retry-btn')) {
+            const form = document.createElement('form');
+            form.method = 'post';
+            form.action = '{% url "kahawa:gift_card_retry" code=gift.code %}';
+            form.className = 'inline';
+            form.innerHTML =
+              '{% csrf_token %}<button type="submit" id="gift-retry-btn" class="inline-flex items-center gap-2 rounded-full bg-caramel-600 px-6 py-3 text-sm font-extrabold text-cream-50 hover:bg-caramel-700">Try M-Pesa again</button>';
+            actions.prepend(form);
+          }
+          if (window.lucide) window.lucide.createIcons();
+        }
+      } catch (_) {}
+    }, 1500);
+  })();
+</script>
+{% endblock %}

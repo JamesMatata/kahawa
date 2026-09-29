@@ -1,0 +1,46 @@
+{% extends "staff/base_manage.html" %}
+
+{% block title %}Activity · {{ member.label }}{% endblock %}
+
+{% block content %}
+<a href="{% url 'kahawa:manage_team' %}" class="inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-caramel-400 hover:text-caramel-300">
+  <i data-lucide="arrow-left" class="h-4 w-4"></i>
+  Team
+</a>
+
+<div class="mt-4 mb-5 sm:mt-5 sm:mb-6">
+  <div class="flex flex-wrap items-center gap-2">
+    <h1 class="min-w-0 font-display text-2xl font-semibold text-white sm:text-3xl">{{ member.label }}</h1>
+    <span class="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide leading-none
+      {% if member.is_admin %}bg-caramel-600/20 text-caramel-400{% else %}bg-sky-500/15 text-sky-300{% endif %}">
+      {{ member.role_label }}
+    </span>
+    <span class="inline-flex h-6 items-center justify-center rounded-full px-2.5 text-[10px] font-extrabold uppercase tracking-wide leading-none
+      {% if member.is_active %}bg-emerald-500/15 text-emerald-300{% else %}bg-slate-500/20 text-slate-400{% endif %}">
+      {% if member.is_active %}Active{% else %}Inactive{% endif %}
+    </span>
+  </div>
+  <p class="mt-1 text-sm font-semibold text-slate-400">@{{ member.user.username }} · recent activity</p>
+</div>
+
+<div class="manage-board overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/5">
+  <ul class="divide-y divide-white/5">
+    {% for item in activities %}
+      <li class="flex flex-col gap-1.5 px-3 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3 sm:px-5">
+        <div class="min-w-0">
+          <p class="text-sm font-extrabold text-white">{{ item.summary }}</p>
+          <p class="mt-0.5 text-xs font-semibold text-slate-500">{{ item.get_action_display }}</p>
+        </div>
+        <time class="shrink-0 text-xs font-bold text-slate-500" datetime="{{ item.created_at|date:'c' }}">
+          {{ item.created_at|date:"M j · g:i A" }}
+        </time>
+      </li>
+    {% empty %}
+      <li class="px-5 py-14 text-center">
+        <p class="font-display text-lg text-slate-300">No activity yet</p>
+        <p class="mt-1 text-sm font-semibold text-slate-500">Actions like sign-in and order updates will show here.</p>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

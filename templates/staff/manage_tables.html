@@ -1,0 +1,551 @@
+{% extends "staff/base_manage.html" %}
+{% load static %}
+
+{% block title %}Tables{% endblock %}
+
+{% block extra_head %}
+<style>
+  .manage-drawer { pointer-events: none; }
+  .manage-drawer.is-open { pointer-events: auto; }
+  .manage-drawer-backdrop { opacity: 0; transition: opacity 0.25s ease; }
+  .manage-drawer.is-open .manage-drawer-backdrop { opacity: 1; }
+  .manage-drawer-panel {
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .manage-drawer.is-open .manage-drawer-panel { transform: translateY(0); }
+  @media (min-width: 768px) {
+    .manage-drawer-panel { transform: translateX(100%); }
+    .manage-drawer.is-open .manage-drawer-panel { transform: translateX(0); }
+  }
+  #table-qr-host svg,
+  #table-qr-host canvas {
+    display: block;
+    width: 200px !important;
+    height: 200px !important;
+    max-width: 100%;
+  }
+  .table-modal-panel {
+    max-height: min(90dvh, 36rem);
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.8.4/lib/qr-code-styling.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+  <div class="min-w-0">
+    <h1 class="font-display text-2xl font-semibold text-white sm:text-3xl">Tables</h1>
+    <p class="mt-1 text-sm font-semibold text-slate-400">QR order links · print and place on each table</p>
+  </div>
+  <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+    {% if tables %}
+      <button
+        type="button"
+        id="print-all-qr"
+        class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2.5 text-sm font-extrabold text-slate-200 hover:bg-white/5 sm:w-auto"
+      >
+        <i data-lucide="printer" class="h-4 w-4"></i>
+        Print all QR
+      </button>
+    {% endif %}
+    <button
+      type="button"
+      id="open-add-table"
+      class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500 sm:w-auto"
+    >
+      <i data-lucide="plus" class="h-4 w-4"></i>
+      Add table
+    </button>
+  </div>
+</div>
+
+{% if error %}
+  <p class="sr-only" id="tables-page-error">{{ error }}</p>
+{% endif %}
+
+<div class="manage-board overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5">
+  <div class="manage-cols-tables hidden border-b border-white/5 px-5 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500 lg:grid">
+    <span>Table</span>
+    <span class="text-center">Status</span>
+    <span class="text-right">Actions</span>
+  </div>
+  <ul class="divide-y divide-white/5">
+    {% for table in tables %}
+      <li class="manage-cols-tables px-3 py-3.5 transition hover:bg-white/[0.02] sm:px-4 lg:grid lg:px-5">
+        <button type="button" class="js-open-table min-w-0 w-full text-left" data-id="{{ table.id }}">
+          <span class="flex items-start justify-between gap-2">
+            <p class="min-w-0 truncate text-sm font-extrabold text-white transition hover:text-caramel-400">{{ table.code }} · {{ table.label }}</p>
+            <span class="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide lg:hidden {% if table.is_active %}bg-emerald-500/15 text-emerald-300{% else %}bg-slate-500/20 text-slate-400{% endif %}">
+              {% if table.is_active %}Active{% else %}Offline{% endif %}
+            </span>
+          </span>
+          <p class="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{{ site_url }}{% url 'kahawa:table_entry' code=table.code %}</p>
+        </button>
+        <div class="mt-3 flex items-center gap-2 lg:mt-0 lg:contents">
+          <div class="hidden justify-center lg:flex">
+            <span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide {% if table.is_active %}bg-emerald-500/15 text-emerald-300{% else %}bg-slate-500/20 text-slate-400{% endif %}">
+              {% if table.is_active %}Active{% else %}Offline{% endif %}
+            </span>
+          </div>
+          <div class="flex min-w-0 flex-1 lg:justify-end">
+            <button
+              type="button"
+              class="js-open-table min-h-10 w-full rounded-full bg-white/5 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-caramel-400 hover:bg-white/10 lg:min-h-0 lg:w-auto lg:py-1.5"
+              data-id="{{ table.id }}"
+            >
+              View
+            </button>
+          </div>
+        </div>
+      </li>
+    {% empty %}
+      <li class="px-5 py-14 text-center">
+        <p class="font-display text-lg text-slate-300">No tables yet</p>
+        <p class="mt-1 text-sm font-semibold text-slate-500">Add a table, then print its QR for the surface.</p>
+        <button type="button" id="open-add-table-empty" class="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">
+          <i data-lucide="plus" class="h-4 w-4"></i>
+          Add table
+        </button>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<form method="post" id="table-action-form" class="hidden">
+  {% csrf_token %}
+  <input type="hidden" name="action" id="table-action-name" value="">
+  <input type="hidden" name="table_id" id="table-action-id" value="">
+</form>
+{% endblock %}
+
+{% block manage_overlays %}
+{# Add / Edit drawer #}
+<div id="drawer-table-form" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-table-form></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,26rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="drawer-table-form-title" class="font-display text-xl font-semibold text-white">Add table</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-table-form aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <form method="post" id="table-form" class="flex min-h-0 flex-1 flex-col" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="action" id="table-form-action" value="create">
+      <input type="hidden" name="table_id" id="table-form-id" value="">
+      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Code</span>
+          <input type="text" name="code" id="table-form-code" required placeholder="t5" autocapitalize="none" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+          <span class="mt-1 block text-[11px] font-semibold text-slate-500">Short slug used in the QR URL</span>
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Label</span>
+          <input type="text" name="label" id="table-form-label" required placeholder="Window · 2 seats" maxlength="60" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <p id="table-form-error" class="hidden text-sm font-bold text-red-300"></p>
+      </div>
+      <div class="flex shrink-0 gap-2 border-t border-white/5 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-close-table-form class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Cancel</button>
+        <button type="submit" id="table-form-submit" class="min-h-11 flex-1 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">Save table</button>
+      </div>
+    </form>
+  </aside>
+</div>
+
+{# Detail drawer with QR #}
+<div id="drawer-table" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-table></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,26rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="drawer-table-title" class="min-w-0 truncate font-display text-xl font-semibold text-white">—</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-table aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+      <div class="mx-auto flex w-full max-w-[15rem] flex-col items-center rounded-2xl bg-white p-4 sm:max-w-none sm:p-6">
+        <div id="table-qr-host" class="flex h-[200px] w-[200px] max-w-full items-center justify-center"></div>
+        <p id="table-detail-name" class="mt-4 text-center font-display text-lg font-semibold" style="color:#1A0F0A">—</p>
+      </div>
+      <dl class="mt-5 space-y-3 text-sm">
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Code</dt>
+          <dd id="table-detail-code" class="font-extrabold text-white">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Label</dt>
+          <dd id="table-detail-label" class="max-w-[60%] text-right font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Status</dt>
+          <dd id="table-detail-status" class="font-extrabold text-white">—</dd>
+        </div>
+      </dl>
+      <div class="mt-5 flex flex-wrap gap-x-4 gap-y-3 text-sm font-bold">
+        <button type="button" id="table-copy-btn" class="min-h-10 text-slate-400 underline-offset-2 hover:text-white hover:underline">Copy link</button>
+        <button type="button" id="table-edit-btn" class="min-h-10 text-caramel-400 underline-offset-2 hover:underline">Edit</button>
+        <button type="button" id="table-toggle-btn" class="min-h-10 text-slate-400 underline-offset-2 hover:text-rose-300 hover:underline">Take offline</button>
+      </div>
+    </div>
+    <div class="flex shrink-0 gap-2 border-t border-white/5 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+      <button type="button" data-close-table class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Close</button>
+      <button type="button" id="table-print-btn" class="min-h-11 flex-[1.4] inline-flex items-center justify-center gap-2 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">
+        <i data-lucide="printer" class="h-4 w-4"></i>
+        Print QR
+      </button>
+    </div>
+  </aside>
+</div>
+
+{# Soft deactivate confirm #}
+<div id="table-deactivate-confirm" class="fixed inset-0 z-[120] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-table-deact-cancel></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="table-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 pt-5 sm:px-5">
+        <h2 class="font-display text-xl font-semibold text-white">Take table offline?</h2>
+        <p class="mt-2 text-sm font-semibold text-slate-400">
+          <span id="table-deact-code" class="font-extrabold text-white">—</span> QR scans will show “table offline”. Past orders keep their table history. You can reactivate anytime.
+        </p>
+      </div>
+      <div class="mt-5 flex gap-2 border-t border-white/5 px-4 py-4 sm:px-5" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-table-deact-cancel class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Keep active</button>
+        <button type="button" id="table-deact-confirm-btn" class="min-h-11 flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-extrabold text-white hover:bg-rose-500">Take offline</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const TABLES = {{ tables_payload_json|safe }};
+    const LOGO = "{% static 'images/kahawa-logo.png' %}";
+    const byId = Object.fromEntries(TABLES.map((t) => [String(t.id), t]));
+    const HAS_ERROR = !!document.getElementById('tables-page-error');
+    const formDrawer = document.getElementById('drawer-table-form');
+    const detailDrawer = document.getElementById('drawer-table');
+    const deactModal = document.getElementById('table-deactivate-confirm');
+    const actionForm = document.getElementById('table-action-form');
+    let activeId = null;
+    let pendingDeactId = null;
+    let detailQr = null;
+
+    const QR_STYLE = {
+      type: 'svg',
+      margin: 8,
+      qrOptions: { errorCorrectionLevel: 'M' },
+      dotsOptions: { type: 'rounded', color: '#1A0F0A' },
+      cornersSquareOptions: { type: 'extra-rounded', color: '#1A0F0A' },
+      cornersDotOptions: { type: 'dot', color: '#1A0F0A' },
+      backgroundOptions: { color: '#FFFFFF' },
+    };
+
+    function makeQr(size, data) {
+      return new QRCodeStyling({
+        width: size,
+        height: size,
+        data: data,
+        ...QR_STYLE,
+      });
+    }
+
+    function openDrawer(el) {
+      if (!el) return;
+      el.classList.remove('hidden');
+      el.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      requestAnimationFrame(() => {
+        el.classList.add('is-open');
+        if (window.lucide) window.lucide.createIcons();
+      });
+    }
+
+    function closeDrawer(el) {
+      if (!el || el.classList.contains('hidden')) return;
+      el.classList.remove('is-open');
+      el.setAttribute('aria-hidden', 'true');
+      const done = () => {
+        el.classList.add('hidden');
+        if (
+          formDrawer.classList.contains('hidden') &&
+          detailDrawer.classList.contains('hidden') &&
+          deactModal.classList.contains('hidden')
+        ) {
+          document.body.classList.remove('overflow-hidden');
+        }
+      };
+      const panel = el.querySelector('.manage-drawer-panel');
+      if (panel) {
+        panel.addEventListener('transitionend', done, { once: true });
+        setTimeout(done, 320);
+      } else done();
+    }
+
+    function openAdd() {
+      closeDrawer(detailDrawer);
+      document.getElementById('drawer-table-form-title').textContent = 'Add table';
+      document.getElementById('table-form-action').value = 'create';
+      document.getElementById('table-form-id').value = '';
+      document.getElementById('table-form-code').value = '';
+      document.getElementById('table-form-code').readOnly = false;
+      document.getElementById('table-form-label').value = '';
+      document.getElementById('table-form-error').classList.add('hidden');
+      document.getElementById('table-form-submit').textContent = 'Add table';
+      openDrawer(formDrawer);
+      document.getElementById('table-form-code')?.focus();
+    }
+
+    function openEdit(table) {
+      closeDrawer(detailDrawer);
+      document.getElementById('drawer-table-form-title').textContent = 'Edit table';
+      document.getElementById('table-form-action').value = 'edit';
+      document.getElementById('table-form-id').value = table.id;
+      document.getElementById('table-form-code').value = table.code;
+      document.getElementById('table-form-code').readOnly = true;
+      document.getElementById('table-form-label').value = table.label;
+      document.getElementById('table-form-error').classList.add('hidden');
+      document.getElementById('table-form-submit').textContent = 'Save changes';
+      openDrawer(formDrawer);
+      document.getElementById('table-form-label')?.focus();
+    }
+
+    function tableDisplayName(t) {
+      return t.label ? t.label : ('Table ' + t.code);
+    }
+
+    function fillDetail(table) {
+      activeId = table.id;
+      document.getElementById('drawer-table-title').textContent = table.code;
+      document.getElementById('table-detail-name').textContent = tableDisplayName(table);
+      document.getElementById('table-detail-code').textContent = table.code;
+      document.getElementById('table-detail-label').textContent = table.label || '—';
+      document.getElementById('table-detail-status').textContent = table.is_active ? 'Active' : 'Offline';
+
+      const host = document.getElementById('table-qr-host');
+      host.innerHTML = '';
+      detailQr = makeQr(200, table.url);
+      detailQr.append(host);
+
+      const toggle = document.getElementById('table-toggle-btn');
+      toggle.textContent = table.is_active ? 'Take offline' : 'Reactivate';
+      toggle.classList.toggle('hover:text-rose-300', table.is_active);
+      toggle.classList.toggle('hover:text-emerald-300', !table.is_active);
+    }
+
+    function openDetail(table) {
+      closeDrawer(formDrawer);
+      fillDetail(table);
+      openDrawer(detailDrawer);
+    }
+
+    async function copyLink(url) {
+      try {
+        await navigator.clipboard.writeText(url);
+        if (window.showToast) showToast('Link copied', 'success');
+      } catch (_) {
+        if (window.showToast) showToast('Could not copy', 'error');
+      }
+    }
+
+    async function qrDataUrl(url, size) {
+      const qr = makeQr(size, url);
+      const blob = await qr.getRawData('png');
+      if (!blob) return '';
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function printTables(list) {
+      if (!list.length) {
+        if (window.showToast) showToast('No active tables to print', 'warning');
+        return;
+      }
+      if (window.showToast) showToast('Preparing print sheet…', 'info');
+
+      const cells = [];
+      for (const t of list) {
+        const src = await qrDataUrl(t.url, 280);
+        const name = tableDisplayName(t).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        cells.push(
+          `<div class="cell">` +
+            `<img src="${src}" alt="QR ${name}" width="180" height="180">` +
+            `<p class="name">${name}</p>` +
+          `</div>`
+        );
+      }
+
+      const html =
+        `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Kahawa table QR codes</title>` +
+        `<style>
+          @page { margin: 12mm; size: A4; }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            font-family: Inter, system-ui, sans-serif;
+            color: #1A0F0A;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .brand { text-align: center; margin: 0 0 10mm; }
+          .brand img { height: 14mm; width: auto; }
+          .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14mm 10mm;
+            align-items: start;
+          }
+          .cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: center;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .cell img {
+            width: 42mm;
+            height: 42mm;
+            display: block;
+          }
+          .name {
+            margin: 4mm 0 0;
+            font-size: 12pt;
+            font-weight: 700;
+            line-height: 1.25;
+            max-width: 48mm;
+          }
+          @media screen {
+            body { padding: 24px; background: #f5f5f5; }
+            .grid {
+              max-width: 210mm;
+              margin: 0 auto;
+              padding: 16mm;
+              background: #fff;
+              box-shadow: 0 8px 30px rgba(0,0,0,.12);
+            }
+          }
+        </style></head><body>` +
+        `<header class="brand"><img src="${LOGO}" alt="Kahawa"></header>` +
+        `<div class="grid">${cells.join('')}</div>` +
+        `<script>window.onload=function(){setTimeout(function(){window.focus();window.print();},150);};<\/script>` +
+        `</body></html>`;
+
+      const win = window.open('', '_blank');
+      if (!win) {
+        if (window.showToast) showToast('Allow pop-ups to print QR codes', 'error');
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    }
+
+    document.getElementById('open-add-table')?.addEventListener('click', openAdd);
+    document.getElementById('open-add-table-empty')?.addEventListener('click', openAdd);
+    document.querySelectorAll('[data-close-table-form]').forEach((el) => {
+      el.addEventListener('click', () => closeDrawer(formDrawer));
+    });
+    document.querySelectorAll('[data-close-table]').forEach((el) => {
+      el.addEventListener('click', () => closeDrawer(detailDrawer));
+    });
+
+    document.querySelectorAll('.js-open-table').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const t = byId[btn.dataset.id];
+        if (t) openDetail(t);
+      });
+    });
+
+    document.getElementById('table-copy-btn')?.addEventListener('click', () => {
+      const t = byId[String(activeId)];
+      if (t) copyLink(t.url);
+    });
+    document.getElementById('table-print-btn')?.addEventListener('click', () => {
+      const t = byId[String(activeId)];
+      if (t) printTables([t]);
+    });
+    document.getElementById('table-edit-btn')?.addEventListener('click', () => {
+      const t = byId[String(activeId)];
+      if (t) openEdit(t);
+    });
+    document.getElementById('print-all-qr')?.addEventListener('click', () => {
+      printTables(TABLES.filter((t) => t.is_active));
+    });
+
+    document.getElementById('table-toggle-btn')?.addEventListener('click', () => {
+      const t = byId[String(activeId)];
+      if (!t) return;
+      if (t.is_active) {
+        pendingDeactId = t.id;
+        document.getElementById('table-deact-code').textContent = t.code;
+        deactModal.classList.remove('hidden');
+        deactModal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('overflow-hidden');
+      } else {
+        document.getElementById('table-action-name').value = 'toggle';
+        document.getElementById('table-action-id').value = t.id;
+        actionForm.submit();
+      }
+    });
+
+    document.querySelectorAll('[data-table-deact-cancel]').forEach((el) => {
+      el.addEventListener('click', () => {
+        pendingDeactId = null;
+        deactModal.classList.add('hidden');
+        deactModal.setAttribute('aria-hidden', 'true');
+        if (formDrawer.classList.contains('hidden') && detailDrawer.classList.contains('hidden')) {
+          document.body.classList.remove('overflow-hidden');
+        }
+      });
+    });
+    document.getElementById('table-deact-confirm-btn')?.addEventListener('click', () => {
+      if (!pendingDeactId) return;
+      document.getElementById('table-action-name').value = 'toggle';
+      document.getElementById('table-action-id').value = pendingDeactId;
+      actionForm.submit();
+    });
+
+    document.getElementById('table-form')?.addEventListener('submit', (e) => {
+      const err = document.getElementById('table-form-error');
+      err.classList.add('hidden');
+      const code = document.getElementById('table-form-code').value.trim();
+      const label = document.getElementById('table-form-label').value.trim();
+      if (!code || !label) {
+        e.preventDefault();
+        err.textContent = 'Code and label are required.';
+        err.classList.remove('hidden');
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!deactModal.classList.contains('hidden')) {
+        deactModal.querySelector('[data-table-deact-cancel]')?.click();
+        return;
+      }
+      if (formDrawer.classList.contains('is-open')) closeDrawer(formDrawer);
+      else if (detailDrawer.classList.contains('is-open')) closeDrawer(detailDrawer);
+    });
+
+    if (HAS_ERROR) {
+      openAdd();
+      const pageErr = document.getElementById('tables-page-error');
+      const formErr = document.getElementById('table-form-error');
+      if (pageErr && formErr) {
+        formErr.textContent = pageErr.textContent.trim();
+        formErr.classList.remove('hidden');
+      }
+    }
+  })();
+</script>
+{% endblock %}

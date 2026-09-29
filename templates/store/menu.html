@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Menu{% endblock %}
+
+{% block extra_head %}
+<style>
+  .category-pill.is-active,
+  .category-pill.is-active:hover,
+  .category-pill.is-active:focus {
+    background-color: #2C1A12 !important;
+    color: #FFFBF5 !important;
+  }
+  .category-pill:not(.is-active):hover {
+    background-color: rgba(245, 217, 184, 0.6);
+  }
+  #category-pills {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1 class="sr-only">Menu</h1>
+
+{% if table_code %}
+  <div class="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-latte/60 px-4 py-3 ring-1 ring-caramel-400/25">
+      <p class="text-sm font-extrabold text-espresso-900">
+        Ordering for table {{ table_code }}{% if table_label %} · {{ table_label }}{% endif %}
+      </p>
+      <div class="flex items-center gap-3">
+        <a href="{% url 'kahawa:cart' %}" class="text-sm font-extrabold text-caramel-700 underline">Go to bag</a>
+        <form method="post" action="{% url 'kahawa:clear_table' %}" class="inline">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="menu">
+          <button type="submit" class="text-sm font-extrabold text-espresso-700/55 underline hover:text-espresso-900">
+            Clear table
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+<div id="menu-filter-bar" class="overflow-x-hidden">
+  <div class="mx-auto max-w-6xl space-y-3 px-4 pt-6 pb-3 sm:px-6">
+    <div class="relative">
+      <i data-lucide="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-espresso-700/40"></i>
+      <input
+        type="search"
+        id="menu-search"
+        placeholder="Search drinks, pastries, bites…"
+        autocomplete="off"
+        class="w-full rounded-2xl border-0 bg-cream-100 py-3 pl-10 pr-4 text-sm font-bold text-espresso-800 placeholder:text-espresso-700/40 ring-1 ring-caramel-400/20 outline-none transition focus:ring-2 focus:ring-caramel-500"
+      >
+    </div>
+    <div class="-mx-4 min-w-0 sm:-mx-6">
+      <div id="category-pills" class="flex gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden">
+        <button type="button" class="category-pill is-active shrink-0 rounded-full bg-cream-100 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-espresso-800 ring-1 ring-caramel-400/20 transition" data-category="all">
+          All
+        </button>
+        {% for category in categories %}
+          <button type="button" class="category-pill shrink-0 rounded-full bg-cream-100 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-espresso-800 ring-1 ring-caramel-400/20 transition" data-category="{{ category.slug }}">
+            {{ category.name }}
+          </button>
+        {% empty %}
+          <button type="button" class="category-pill shrink-0 rounded-full bg-cream-100 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-espresso-800 ring-1 ring-caramel-400/20" data-category="espresso-coffee">Espresso &amp; Coffee</button>
+          <button type="button" class="category-pill shrink-0 rounded-full bg-cream-100 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-espresso-800 ring-1 ring-caramel-400/20" data-category="cold-brews">Cold Brews</button>
+          <button type="button" class="category-pill shrink-0 rounded-full bg-cream-100 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-espresso-800 ring-1 ring-caramel-400/20" data-category="pastries">Pastries</button>
+          <button type="button" class="category-pill shrink-0 rounded-full bg-cream-100 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-espresso-800 ring-1 ring-caramel-400/20" data-category="quick-bites">Quick Bites</button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+  {% if packages %}
+    <div class="mb-10">
+      <h2 class="font-display text-2xl font-semibold text-espresso-900">Offers</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {% for package in packages %}
+          {% include "store/partials/package_card.html" with package=package %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+  <div id="product-grid" class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    {% for product in products %}
+      {% include "store/partials/product_card.html" with product=product %}
+    {% empty %}
+      {% if not sold_out_products %}
+      <div class="col-span-full rounded-3xl border border-dashed border-caramel-400/40 bg-cream-100/50 px-6 py-16 text-center">
+        <i data-lucide="coffee" class="mx-auto h-10 w-10 text-caramel-600"></i>
+        <p class="mt-4 font-display text-2xl text-espresso-800">Menu’s brewing</p>
+        <p class="mt-2 text-sm font-semibold text-espresso-700/60">Add available products in Manage to populate this page.</p>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  {% if sold_out_products %}
+    <div class="mt-12">
+      <h2 class="font-display text-xl font-semibold text-espresso-800/70">Sold out</h2>
+      <p class="mt-1 text-sm font-semibold text-espresso-700/50">Back soon — these aren’t orderable right now.</p>
+      <div class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {% for product in sold_out_products %}
+          {% include "store/partials/product_card.html" with product=product %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <p id="menu-empty" class="mt-8 hidden text-center text-sm font-bold text-espresso-700/60">
+    No matches — try another search or category.
+  </p>
+</section>
+
+{% include "store/partials/customize_modal.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const searchInput = document.getElementById('menu-search');
+    const pills = document.querySelectorAll('.category-pill');
+    const cards = document.querySelectorAll('.product-card');
+    const emptyState = document.getElementById('menu-empty');
+    let activeCategory = 'all';
+
+    function filterMenu() {
+      const query = (searchInput?.value || '').trim().toLowerCase();
+      let visible = 0;
+
+      cards.forEach((card) => {
+        const cat = card.dataset.category || '';
+        const name = card.dataset.name || '';
+        const desc = card.dataset.description || '';
+        const matchesCategory = activeCategory === 'all' || cat === activeCategory;
+        const matchesSearch = !query || name.includes(query) || desc.includes(query);
+        const show = matchesCategory && matchesSearch;
+        card.classList.toggle('hidden', !show);
+        if (show) visible += 1;
+      });
+
+      if (emptyState) {
+        emptyState.classList.toggle('hidden', visible > 0 || cards.length === 0);
+      }
+    }
+
+    pills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        pills.forEach((p) => p.classList.remove('is-active'));
+        pill.classList.add('is-active');
+        activeCategory = pill.dataset.category || 'all';
+        filterMenu();
+      });
+    });
+
+    searchInput?.addEventListener('input', filterMenu);
+  })();
+</script>
+{% endblock %}

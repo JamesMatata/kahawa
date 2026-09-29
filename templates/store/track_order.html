@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}Track Order{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+  <div class="mb-8 text-center sm:text-left">
+    <h1 class="font-display text-4xl font-semibold text-espresso-900">Track Order</h1>
+    <p class="mt-2 text-sm font-semibold text-espresso-700/70">
+      Enter your order code and the phone number used at checkout.
+    </p>
+  </div>
+
+  <form method="post" action="{% url 'kahawa:track_order' %}" class="rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15 sm:p-8">
+    {% csrf_token %}
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block">
+        <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Order code</span>
+        <input
+          type="text"
+          name="order_code"
+          value="{{ order_code }}"
+          placeholder="KHW-8942"
+          required
+          autocomplete="off"
+          class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+        >
+      </label>
+      <label class="block">
+        <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Phone number</span>
+        <input
+          type="tel"
+          name="phone"
+          value="{{ phone }}"
+          placeholder="07XXXXXXXX"
+          required
+          class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+        >
+      </label>
+    </div>
+    {% if error %}
+      <p class="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-800" role="alert">{{ error }}</p>
+    {% endif %}
+    <button type="submit" class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 px-6 py-3.5 text-sm font-extrabold text-cream-50 transition hover:bg-caramel-700 sm:w-auto">
+      <i data-lucide="search" class="h-4 w-4"></i>
+      Check Status
+    </button>
+  </form>
+
+  {% if order %}
+    <div class="mt-8 rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15 sm:p-8" id="track-result">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs font-extrabold uppercase tracking-widest text-caramel-600">Order {{ order.order_code }}</p>
+          <h2 class="mt-1 font-display text-2xl font-semibold text-espresso-900">Hey, {{ order.customer_name }}</h2>
+          <p class="mt-1 text-sm font-semibold text-espresso-700/65">
+            Placed {{ order.created_at|date:"M j, Y · g:i A" }}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <span class="rounded-full bg-espresso-800 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-caramel-400">
+            {{ order.get_order_type_display }}
+          </span>
+          {% if order.payment_status == 'PAID' %}
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-emerald-800">Paid</span>
+          {% elif order.payment_status == 'FAILED' %}
+            <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-red-800">Payment failed</span>
+          {% else %}
+            <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-amber-900">Payment pending</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if cancelled %}
+        <div class="mt-6 rounded-2xl border border-red-300 bg-red-50 px-4 py-4 text-sm font-bold text-red-900">
+          This order was cancelled. Reach out on WhatsApp or at the cafe if you need help.
+        </div>
+      {% else %}
+        {# Visual stepper #}
+        <ol class="mt-8 grid grid-cols-4 gap-2" aria-label="Order progress">
+          {% for step in steps %}
+            {% if forloop.counter0 < active_index %}
+              {% with state="done" %}
+                <li class="relative flex flex-col items-center text-center">
+                  {% if not forloop.last %}
+                    <span class="absolute left-[calc(50%+14px)] right-[calc(-50%+14px)] top-3.5 h-0.5 bg-caramel-500"></span>
+                  {% endif %}
+                  <span class="relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-caramel-600 text-cream-50">
+                    <i data-lucide="check" class="h-3.5 w-3.5"></i>
+                  </span>
+                  <span class="mt-2 text-[10px] font-extrabold uppercase leading-tight tracking-wide text-caramel-700 sm:text-xs">{{ step.label }}</span>
+                </li>
+              {% endwith %}
+            {% elif forloop.counter0 == active_index %}
+              <li class="relative flex flex-col items-center text-center">
+                {% if not forloop.last %}
+                  <span class="absolute left-[calc(50%+14px)] right-[calc(-50%+14px)] top-3.5 h-0.5 bg-caramel-400/30"></span>
+                {% endif %}
+                <span class="relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-espresso-800 text-caramel-400 ring-4 ring-caramel-400/25">
+                  <span class="h-2 w-2 rounded-full bg-caramel-400"></span>
+                </span>
+                <span class="mt-2 text-[10px] font-extrabold uppercase leading-tight tracking-wide text-espresso-900 sm:text-xs">{{ step.label }}</span>
+              </li>
+            {% else %}
+              <li class="relative flex flex-col items-center text-center">
+                {% if not forloop.last %}
+                  <span class="absolute left-[calc(50%+14px)] right-[calc(-50%+14px)] top-3.5 h-0.5 bg-caramel-400/20"></span>
+                {% endif %}
+                <span class="relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-cream-100 text-espresso-700/30 ring-1 ring-caramel-400/20">
+                  <span class="h-2 w-2 rounded-full bg-espresso-700/20"></span>
+                </span>
+                <span class="mt-2 text-[10px] font-extrabold uppercase leading-tight tracking-wide text-espresso-700/40 sm:text-xs">{{ step.label }}</span>
+              </li>
+            {% endif %}
+          {% endfor %}
+        </ol>
+      {% endif %}
+
+      {% if order.order_type == 'DELIVERY' and order.delivery_location %}
+        <p class="mt-6 flex items-start gap-2 text-sm font-semibold text-espresso-700/75">
+          <i data-lucide="map-pin" class="mt-0.5 h-4 w-4 shrink-0 text-caramel-600"></i>
+          {{ order.delivery_location }}
+        </p>
+      {% endif %}
+
+      <ul class="mt-6 space-y-3 border-t border-caramel-400/15 pt-6">
+        {% for item in order.items.all %}
+          <li class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-extrabold text-espresso-900">
+                {{ item.quantity }}× {{ item.display_name }}
+              </p>
+              {% include "store/partials/item_customization.html" with item=item %}
+            </div>
+            <p class="shrink-0 text-sm font-extrabold text-espresso-800">KSh {{ item.line_total|floatformat:0 }}</p>
+          </li>
+        {% endfor %}
+      </ul>
+
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-caramel-400/15 pt-4">
+        <div>
+          <p class="text-xs font-extrabold uppercase tracking-wide text-espresso-700/50">
+            {% if order.payment_status == 'PAID' %}Total paid{% else %}Total due{% endif %}
+          </p>
+          <p class="font-display text-2xl font-semibold text-espresso-900">KSh {{ order.total_amount|floatformat:0 }}</p>
+          {% if order.tax_amount %}
+            <p class="text-xs font-semibold text-espresso-700/55">VAT included KSh {{ order.tax_amount|floatformat:0 }}</p>
+          {% endif %}
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <p class="text-sm font-bold text-espresso-700/70">
+            Status: <span class="text-espresso-900">{{ order.get_status_display }}</span>
+          </p>
+          <a href="{% url 'kahawa:order_receipt' order.order_code %}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-sm font-extrabold text-caramel-700 hover:text-espresso-900">
+            <i data-lucide="printer" class="h-4 w-4"></i>
+            Receipt
+          </a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div id="recent-orders-section" class="mt-10 hidden">
+    <h2 class="font-display text-xl font-semibold text-espresso-900">Your Recent Orders on this Device</h2>
+    <p class="mt-1 text-sm font-semibold text-espresso-700/60">One-click lookup — you’ll still confirm with your phone.</p>
+    <div id="recent-orders-list" class="mt-4 flex flex-wrap gap-2"></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const section = document.getElementById('recent-orders-section');
+    const list = document.getElementById('recent-orders-list');
+    const codeInput = document.querySelector('input[name="order_code"]');
+    const phoneInput = document.querySelector('input[name="phone"]');
+    if (!section || !list || !window.KahawaCart) return;
+
+    let codes = window.KahawaCart.getRecentOrders();
+    try {
+      const raw = localStorage.getItem('recent_orders');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          codes = [...new Set([...parsed, ...codes])];
+        }
+      }
+    } catch (_) {}
+
+    if (!codes.length) return;
+
+    section.classList.remove('hidden');
+    list.innerHTML = codes.map((code) => {
+      const safe = String(code).replace(/[^\w-]/g, '');
+      return `<button type="button" data-order-code="${safe}" class="js-recent-order inline-flex items-center gap-2 rounded-full bg-espresso-800 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-caramel-400 transition hover:bg-espresso-900">
+        <i data-lucide="receipt" class="h-3.5 w-3.5"></i>${safe}
+      </button>`;
+    }).join('');
+
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-recent-order');
+      if (!btn || !codeInput) return;
+      codeInput.value = btn.dataset.orderCode || '';
+      codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      phoneInput?.focus();
+      codeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    if (window.lucide) window.lucide.createIcons();
+
+    const result = document.getElementById('track-result');
+    if (result) result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  })();
+</script>
+{% endblock %}

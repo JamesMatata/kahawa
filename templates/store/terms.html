@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Terms{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+  <h1 class="font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">Terms</h1>
+  <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+    Simple rules for ordering from {{ cafe.name }}.
+  </p>
+
+  <div class="mt-8 space-y-6 text-sm font-semibold leading-relaxed text-espresso-800/85">
+    <div>
+      <h2 class="font-display text-xl font-semibold text-espresso-900">Orders</h2>
+      <p class="mt-2">
+        Placing an order is an offer to buy. We prepare after payment is confirmed. Prep times are estimates —
+        about {{ cafe.prep_pickup_min }} min for pickup and {{ cafe.prep_delivery_min }} min for delivery.
+      </p>
+    </div>
+    <div>
+      <h2 class="font-display text-xl font-semibold text-espresso-900">Delivery</h2>
+      <p class="mt-2">
+        Delivery is limited to roughly 1 km around our cafe so drinks stay hot. Confirm your address is in range before paying.
+      </p>
+    </div>
+    <div>
+      <h2 class="font-display text-xl font-semibold text-espresso-900">Cancellations &amp; refunds</h2>
+      <p class="mt-2">
+        We may cancel if an item is unavailable or payment fails. Paid orders cancelled by the cafe are marked for refund via M-Pesa.
+      </p>
+    </div>
+    <div>
+      <h2 class="font-display text-xl font-semibold text-espresso-900">Hours</h2>
+      <p class="mt-2">{{ cafe.hours_weekday }} · {{ cafe.hours_weekend }}</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

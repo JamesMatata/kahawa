@@ -1,0 +1,27 @@
+/* Thin dark scrollbars — storefront + manage */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2f3a transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #2a2f3a;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3d4450;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+  <h1 class="font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">Privacy</h1>
+  <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+    How {{ cafe.name }} handles your information when you order.
+  </p>
+
+  <div class="mt-8 space-y-6 text-sm font-semibold leading-relaxed text-espresso-800/85">
+    <div>
+      <h2 class="font-display text-xl font-semibold text-espresso-900">What we collect</h2>
+      <p class="mt-2">
+        Name, phone number, optional email, delivery address, and order details needed to prepare and deliver your coffee.
+      </p>
+    </div>
+    <div>
+      <h2 class="font-display text-xl font-semibold text-espresso-900">How we use it</h2>
+      <p class="mt-2">
+        To process orders, send SMS updates, handle M-Pesa payments, and improve service. We do not sell your data.
+      </p>
+    </div>
+    <div>
+      <h2 class="font-display text-xl font-semibold text-espresso-900">Payments</h2>
+      <p class="mt-2">
+        M-Pesa payments are processed by Safaricom. We store order and receipt references for reconciliation.
+      </p>
+    </div>
+    <div>
+      <h2 class="font-display text-xl font-semibold text-espresso-900">Contact</h2>
+      <p class="mt-2">
+        Questions? Call
+        <a href="tel:{{ cafe.phone_tel }}" class="font-extrabold text-caramel-700 hover:text-caramel-600">{{ cafe.phone }}</a>
+        or visit us at {{ cafe.address }}.
+      </p>
+    </div>
+  </div>
+</section>
+{% endblock %}

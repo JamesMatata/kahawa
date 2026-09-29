@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Order {{ order.order_code }}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-2xl px-4 py-14 sm:px-6">
+  <div class="rounded-2xl bg-cream-50 p-8 text-center ring-1 ring-caramel-400/15 sm:p-12">
+    <span class="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-caramel-600 text-cream-50">
+      <i data-lucide="party-popper" class="h-7 w-7"></i>
+    </span>
+    <h1 class="mt-2 font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">
+      We’re on it, {{ order.customer_name }}!
+    </h1>
+    <p class="mt-3 text-sm font-semibold text-espresso-700/70">
+      Your order code is
+      <span class="rounded-full bg-espresso-800 px-3 py-1 font-extrabold text-caramel-400">{{ order.order_code }}</span>
+    </p>
+
+    {% if order.payment_status != 'PAID' %}
+      <div class="mt-5 rounded-2xl border border-amber-400/40 bg-amber-50 px-4 py-4 text-left">
+        <p class="text-sm font-extrabold text-amber-950">Payment pending · settle at the counter</p>
+        <p class="mt-1 text-sm font-semibold text-amber-900/80">
+          Your order is with the kitchen. Pay cash or M-Pesa at the counter when you’re ready — show this code.
+        </p>
+      </div>
+    {% endif %}
+
+    <p class="mt-4 text-sm font-semibold text-espresso-700/65">
+      {% if order.order_type == 'DELIVERY' %}
+        Delivery to {{ order.delivery_location }} · ETA depends on rider traffic within 1 km.
+      {% elif order.order_type == 'DINE_IN' %}
+        Dine in{% if order.table %} · Table {{ order.table.code }}{% if order.table.label %} · {{ order.table.label }}{% endif %}{% endif %} · we’ll bring it over.
+      {% else %}
+        Pickup at Kimathi Street · we’ll text when it’s ready (~8–12 min).
+      {% endif %}
+    </p>
+    <p class="mt-2 text-lg font-extrabold text-espresso-900">
+      Total: KSh {{ order.total_amount|floatformat:0 }}
+      {% if order.tax_amount %}
+        <span class="mt-1 block text-sm font-semibold text-espresso-700/60">VAT included: KSh {{ order.tax_amount|floatformat:0 }}</span>
+      {% endif %}
+      {% if order.payment_status == 'PAID' %}
+        <span class="ml-2 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wide text-emerald-800">Paid</span>
+      {% else %}
+        <span class="ml-2 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wide text-amber-900">Unpaid</span>
+      {% endif %}
+    </p>
+    {% if order.points_earned %}
+      <p class="mt-1 text-sm font-bold text-emerald-800">+{{ order.points_earned }} loyalty points earned</p>
+    {% endif %}
+    {% if order.discount_amount %}
+      <p class="mt-1 text-sm font-semibold text-espresso-700/60">Discounts applied: KSh {{ order.discount_amount|floatformat:0 }}</p>
+    {% endif %}
+
+    <ul class="mt-8 space-y-3 text-left">
+      {% for item in order.items.all %}
+        <li class="flex items-start justify-between gap-3 rounded-2xl bg-cream-100 px-4 py-3 ring-1 ring-caramel-400/10">
+          <div>
+            <p class="text-sm font-extrabold text-espresso-900">
+              {{ item.quantity }}× {{ item.display_name }}
+            </p>
+            {% include "store/partials/item_customization.html" with item=item %}
+          </div>
+          <p class="shrink-0 text-sm font-extrabold text-espresso-800">
+            KSh {{ item.line_total|floatformat:0 }}
+          </p>
+        </li>
+      {% endfor %}
+    </ul>
+
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <a href="{% url 'kahawa:order_receipt' order.order_code %}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 rounded-full bg-espresso-800 px-6 py-3 text-sm font-extrabold text-cream-50 hover:bg-espresso-900">
+        <i data-lucide="printer" class="h-4 w-4"></i>
+        Print receipt
+      </a>
+      <a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-6 py-3 text-sm font-extrabold text-white hover:brightness-95">
+        <i data-lucide="message-circle" class="h-4 w-4"></i>
+        WhatsApp receipt
+      </a>
+      <a href="{% url 'kahawa:track_order' %}?code={{ order.order_code }}" class="inline-flex items-center gap-2 rounded-full bg-espresso-800 px-6 py-3 text-sm font-extrabold text-cream-50 hover:bg-espresso-900">
+        Track Order
+      </a>
+      <a href="{% url 'kahawa:menu' %}" class="inline-flex items-center gap-2 rounded-full border border-espresso-800/15 px-6 py-3 text-sm font-extrabold text-espresso-800 hover:bg-cream-100">
+        Order again
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

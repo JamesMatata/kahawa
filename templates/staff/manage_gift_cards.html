@@ -1,0 +1,870 @@
+{% extends "staff/base_manage.html" %}
+
+{% block title %}Gift cards{% endblock %}
+
+{% block extra_head %}
+<style>
+  .manage-drawer { pointer-events: none; }
+  .manage-drawer.is-open { pointer-events: auto; }
+  .manage-drawer-backdrop { opacity: 0; transition: opacity 0.25s ease; }
+  .manage-drawer.is-open .manage-drawer-backdrop { opacity: 1; }
+  .manage-drawer-panel {
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .manage-drawer.is-open .manage-drawer-panel { transform: translateY(0); }
+  @media (min-width: 768px) {
+    .manage-drawer-panel { transform: translateX(100%); }
+    .manage-drawer.is-open .manage-drawer-panel { transform: translateX(0); }
+  }
+  .gift-choice {
+    position: relative;
+    display: block;
+  }
+  .gift-choice > input[type="radio"] {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    margin: 0;
+    cursor: pointer;
+    opacity: 0;
+  }
+  .gift-choice > input[type="radio"]:checked + .gift-choice-face {
+    background: rgba(217, 119, 6, 0.2);
+    box-shadow: inset 0 0 0 1px rgb(217 119 6);
+  }
+  .gift-modal-panel {
+    max-height: min(90dvh, 36rem);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+  <div class="min-w-0">
+    <h1 class="font-display text-2xl font-semibold text-white sm:text-3xl">Gift cards</h1>
+    <p class="mt-1 text-sm font-semibold text-slate-400">Issue as a gift, sell for cash, or collect M-Pesa · tap a card for details</p>
+  </div>
+  <button
+    type="button"
+    id="open-issue-gift"
+    class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-caramel-500 sm:w-auto"
+  >
+    <i data-lucide="plus" class="h-4 w-4"></i>
+    Add gift card
+  </button>
+</div>
+
+{% if error %}
+  <p class="sr-only" id="gift-page-error">{{ error }}</p>
+{% endif %}
+
+<div class="manage-board overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5">
+  <div class="manage-cols-gifts hidden border-b border-white/5 px-5 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500 lg:grid">
+    <span>Card</span>
+    <span class="text-right">Balance</span>
+    <span class="text-center">Status</span>
+    <span class="text-right">Actions</span>
+  </div>
+  <ul class="divide-y divide-white/5">
+    {% for card in cards %}
+      <li class="manage-cols-gifts px-3 py-3.5 transition hover:bg-white/[0.02] sm:px-4 lg:grid lg:px-5">
+        <button
+          type="button"
+          class="js-open-gift min-w-0 w-full text-left"
+          data-id="{{ card.id }}"
+        >
+          <span class="flex items-start justify-between gap-2">
+            <p class="font-mono text-sm font-extrabold text-white transition hover:text-caramel-400">{{ card.code }}</p>
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide lg:hidden
+              {% if card.payment_status == 'PAID' and card.is_active %}bg-emerald-500/15 text-emerald-300
+              {% elif card.payment_status == 'PAID' %}bg-slate-500/20 text-slate-400
+              {% elif card.payment_status == 'PENDING' %}bg-amber-500/15 text-amber-300
+              {% else %}bg-rose-500/15 text-rose-300{% endif %}">
+              {% if card.payment_status == 'PAID' and card.is_active %}Active
+              {% elif card.payment_status == 'PAID' %}Inactive
+              {% elif card.payment_status == 'PENDING' %}Awaiting pay
+              {% else %}Unpaid{% endif %}
+            </span>
+          </span>
+          <p class="mt-0.5 text-xs font-semibold text-slate-500">
+            Issued {{ card.created_at|date:"M j · g:i A" }}
+            {% if card.purchaser_phone %} · {{ card.purchaser_phone }}{% endif %}
+          </p>
+          <p class="mt-1 text-sm font-extrabold text-white lg:hidden">
+            KSh {{ card.balance|floatformat:0 }}
+            <span class="text-[11px] font-semibold text-slate-500">of {{ card.initial_balance|floatformat:0 }}</span>
+          </p>
+        </button>
+        <div class="mt-3 flex items-center gap-2 lg:mt-0 lg:contents">
+          <div class="hidden text-right lg:block">
+            <p class="text-sm font-extrabold text-white">KSh {{ card.balance|floatformat:0 }}</p>
+            <p class="text-[11px] font-semibold text-slate-500">of {{ card.initial_balance|floatformat:0 }}</p>
+          </div>
+          <div class="hidden justify-center lg:flex">
+            <span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide
+              {% if card.payment_status == 'PAID' and card.is_active %}bg-emerald-500/15 text-emerald-300
+              {% elif card.payment_status == 'PAID' %}bg-slate-500/20 text-slate-400
+              {% elif card.payment_status == 'PENDING' %}bg-amber-500/15 text-amber-300
+              {% else %}bg-rose-500/15 text-rose-300{% endif %}">
+              {% if card.payment_status == 'PAID' and card.is_active %}Active
+              {% elif card.payment_status == 'PAID' %}Inactive
+              {% elif card.payment_status == 'PENDING' %}Awaiting pay
+              {% else %}Unpaid{% endif %}
+            </span>
+          </div>
+          <div class="flex min-w-0 flex-1 items-center gap-2 lg:flex-none lg:justify-end">
+            {% if card.payment_status != 'PAID' %}
+              <button
+                type="button"
+                class="js-collect-gift min-h-10 min-w-0 flex-1 rounded-full border border-caramel-500/40 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-caramel-300 hover:bg-caramel-500/10 lg:min-h-0 lg:flex-none lg:py-1.5"
+                data-id="{{ card.id }}"
+              >
+                Pay
+              </button>
+            {% elif card.is_active %}
+              <button
+                type="button"
+                class="js-deactivate-gift min-h-10 min-w-0 flex-1 rounded-full border border-white/10 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-300 hover:bg-white/5 lg:min-h-0 lg:flex-none lg:py-1.5"
+                data-id="{{ card.id }}"
+                data-code="{{ card.code }}"
+              >
+                Off
+              </button>
+            {% endif %}
+            <button
+              type="button"
+              class="js-open-gift min-h-10 shrink-0 rounded-full bg-white/5 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-caramel-400 hover:bg-white/10 lg:min-h-0 lg:py-1.5"
+              data-id="{{ card.id }}"
+            >
+              View
+            </button>
+          </div>
+        </div>
+      </li>
+    {% empty %}
+      <li class="px-5 py-14 text-center">
+        <p class="font-display text-lg text-slate-300">No gift cards yet</p>
+        <p class="mt-1 text-sm font-semibold text-slate-500">Issue a complimentary card or sell one for cash / M-Pesa.</p>
+        <button
+          type="button"
+          class="js-open-issue-empty mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500"
+        >
+          <i data-lucide="plus" class="h-4 w-4"></i>
+          Add gift card
+        </button>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<form method="post" id="gift-deactivate-submit" class="hidden">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="deactivate">
+  <input type="hidden" name="gift_id" id="gift-deactivate-submit-id" value="">
+</form>
+{% endblock %}
+
+{% block manage_overlays %}
+{# Issue gift card drawer #}
+<div id="drawer-issue" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="drawer-issue-title">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-issue></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,26rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="drawer-issue-title" class="font-display text-xl font-semibold text-white">Add gift card</h2>
+      <button type="button" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-issue aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+
+    <form method="post" id="gift-issue-form" class="flex min-h-0 flex-1 flex-col" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="action" value="issue">
+      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Amount (KSh)</span>
+          <input type="number" name="amount" id="issue-amount" min="100" step="100" required value="500" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
+            Phone <span id="phone-hint" class="normal-case tracking-normal text-slate-600">(required)</span>
+          </span>
+          <input type="tel" name="phone" id="issue-phone" placeholder="07XXXXXXXX" inputmode="tel" autocomplete="tel" required class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+
+        <fieldset>
+          <legend class="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">How is this issued?</legend>
+          <div class="grid gap-2">
+            <label class="gift-choice cursor-pointer">
+              <input type="radio" name="issue_mode" value="gift" checked>
+              <span class="gift-choice-face flex flex-col rounded-2xl bg-ink-950 px-4 py-3 ring-1 ring-white/10">
+                <span class="text-sm font-extrabold text-white">Gift</span>
+                <span class="mt-0.5 text-[11px] font-semibold text-slate-500">Complimentary · no payment</span>
+              </span>
+            </label>
+            <label class="gift-choice cursor-pointer">
+              <input type="radio" name="issue_mode" value="cash">
+              <span class="gift-choice-face flex flex-col rounded-2xl bg-ink-950 px-4 py-3 ring-1 ring-white/10">
+                <span class="text-sm font-extrabold text-white">Cash</span>
+                <span class="mt-0.5 text-[11px] font-semibold text-slate-500">Customer pays now</span>
+              </span>
+            </label>
+            <label class="gift-choice cursor-pointer">
+              <input type="radio" name="issue_mode" value="mpesa">
+              <span class="gift-choice-face flex flex-col rounded-2xl bg-ink-950 px-4 py-3 ring-1 ring-white/10">
+                <span class="text-sm font-extrabold text-white">M-Pesa</span>
+                <span class="mt-0.5 text-[11px] font-semibold text-slate-500">STK prompt on phone</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <p id="issue-form-error" class="hidden text-sm font-bold text-red-300"></p>
+      </div>
+
+      <div class="flex shrink-0 gap-2 border-t border-white/5 bg-ink-850 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-close-issue class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">
+          Cancel
+        </button>
+        <button
+          type="submit"
+          id="issue-submit"
+          disabled
+          class="min-h-11 flex-1 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-caramel-600"
+        >
+          Issue gift card
+        </button>
+      </div>
+    </form>
+  </aside>
+</div>
+
+<div id="drawer-gift" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="drawer-gift-title">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-gift></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,26rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="drawer-gift-title" class="min-w-0 truncate font-mono text-lg font-semibold text-white">—</h2>
+      <button type="button" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-gift aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+
+    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-xl bg-ink-950/80 p-3 ring-1 ring-white/5">
+          <p class="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Remaining</p>
+          <p class="mt-1 font-display text-2xl font-semibold text-caramel-400" id="gift-balance">KSh 0</p>
+        </div>
+        <div class="rounded-xl bg-ink-950/80 p-3 ring-1 ring-white/5">
+          <p class="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Spent</p>
+          <p class="mt-1 font-display text-2xl font-semibold text-white" id="gift-spent">KSh 0</p>
+        </div>
+      </div>
+
+      <div class="mt-3 rounded-xl bg-ink-950/80 p-3 ring-1 ring-white/5">
+        <div class="flex items-center justify-between text-xs font-bold text-slate-400">
+          <span>Used</span>
+          <span id="gift-used-label">0%</span>
+        </div>
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
+          <div id="gift-used-bar" class="h-full rounded-full bg-caramel-600 transition-all" style="width:0%"></div>
+        </div>
+        <p class="mt-2 text-xs font-semibold text-slate-500">
+          Initial <span id="gift-initial" class="text-slate-300">KSh 0</span>
+        </p>
+      </div>
+
+      <dl class="mt-5 space-y-3 text-sm">
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Status</dt>
+          <dd id="gift-status" class="font-extrabold text-white">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Payment</dt>
+          <dd id="gift-method" class="font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Issued</dt>
+          <dd id="gift-created" class="font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Paid</dt>
+          <dd id="gift-paid" class="font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Issued by</dt>
+          <dd id="gift-by" class="font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Phone</dt>
+          <dd id="gift-phone" class="font-bold text-slate-200">—</dd>
+        </div>
+      </dl>
+
+      <div class="mt-6">
+        <h3 class="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Spend history</h3>
+        <ul id="gift-spends" class="mt-3 space-y-2"></ul>
+        <p id="gift-spends-empty" class="mt-3 hidden text-sm font-semibold text-slate-500">No orders have used this card yet.</p>
+      </div>
+    </div>
+
+    <div class="flex shrink-0 gap-2 border-t border-white/5 bg-ink-850 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+      <button type="button" data-close-gift class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Close</button>
+      <button
+        type="button"
+        id="gift-collect-btn"
+        class="hidden min-h-11 flex-1 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500"
+      >
+        Collect payment
+      </button>
+      <button
+        type="button"
+        id="gift-deactivate-btn"
+        class="hidden min-h-11 flex-1 rounded-full border border-rose-500/30 py-2.5 text-sm font-extrabold text-rose-300 hover:bg-rose-500/10"
+      >
+        Deactivate
+      </button>
+    </div>
+  </aside>
+</div>
+
+{# Collect payment #}
+<div id="collect-modal" class="fixed inset-0 z-[120] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="collect-title">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-collect-cancel></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="gift-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 pt-5 sm:px-5">
+        <h2 id="collect-title" class="font-display text-xl font-semibold text-white">Collect payment</h2>
+        <p class="mt-1 text-sm font-semibold text-slate-400">
+          <span id="collect-code" class="font-mono font-extrabold text-white">—</span>
+          · KSh <span id="collect-amount">0</span>
+        </p>
+        <label class="mt-4 block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">M-Pesa phone</span>
+          <input type="tel" id="collect-phone" placeholder="07XXXXXXXX" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <p id="collect-error" class="mt-2 hidden text-sm font-bold text-red-300"></p>
+      </div>
+      <div class="mt-5 flex flex-col gap-2 border-t border-white/5 px-4 py-4 sm:flex-row sm:px-5" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-collect-cancel class="min-h-11 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5 sm:flex-1">
+          Cancel
+        </button>
+        <button type="button" id="collect-cash-btn" class="min-h-11 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-white hover:bg-white/5 sm:flex-1">
+          Cash
+        </button>
+        <button type="button" id="collect-mpesa-btn" class="min-h-11 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500 sm:flex-1">
+          M-Pesa
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# M-Pesa wait #}
+<div id="stk-modal" class="fixed inset-0 z-[130] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="gift-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 px-4 py-6 text-center ring-1 ring-white/10 sm:px-5" style="padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));">
+      <div id="stk-icon" class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-caramel-600/20 text-caramel-400">
+        <i data-lucide="loader-circle" class="h-6 w-6 animate-spin"></i>
+      </div>
+      <h2 id="stk-title" class="mt-4 font-display text-xl font-semibold text-white">Waiting for M-Pesa</h2>
+      <p id="stk-text" class="mt-2 text-sm font-semibold text-slate-400">Ask the customer to enter their PIN.</p>
+      <p id="stk-code" class="mt-3 font-mono text-sm font-extrabold text-caramel-400">—</p>
+      <div id="stk-actions" class="mt-5 hidden flex flex-col gap-2">
+        <button type="button" id="stk-retry-btn" class="min-h-11 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">
+          Try again
+        </button>
+        <button type="button" id="stk-dismiss-btn" class="min-h-11 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">
+          Save unpaid · close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Deactivate confirmation #}
+<div id="deactivate-confirm" class="fixed inset-0 z-[120] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="deactivate-title">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-deactivate-cancel></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="gift-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 pt-5 sm:px-5">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/15 text-rose-300">
+          <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+        </div>
+        <h2 id="deactivate-title" class="mt-3 font-display text-xl font-semibold text-white">Deactivate gift card?</h2>
+        <p class="mt-2 text-sm font-semibold leading-relaxed text-slate-400">
+          <span id="deactivate-code" class="font-mono font-extrabold text-white">—</span> will stop working for new orders. Any remaining balance on this card will no longer be usable.
+        </p>
+      </div>
+      <div class="mt-5 flex gap-2 border-t border-white/5 px-4 py-4 sm:px-5" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-deactivate-cancel class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">
+          Keep active
+        </button>
+        <button type="button" id="deactivate-confirm-btn" class="min-h-11 flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-extrabold text-white hover:bg-rose-500">
+          Deactivate
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    const CARDS = {{ cards_payload_json|safe }};
+    const byId = Object.fromEntries(CARDS.map((c) => [String(c.id), c]));
+    const PAYING_CODE = '{{ paying_code|default:""|escapejs }}';
+    const COLLECT_URL_TMPL = '{% url "kahawa:manage_collect_gift_payment" gift_id=0 %}'.replace('/0/', '/__ID__/');
+    const CSRF = document.querySelector('#gift-issue-form [name=csrfmiddlewaretoken]')?.value || '';
+    const PHONE_RE = /^(?:0[17]\d{8}|\+?254[17]\d{8})$/;
+
+    const drawer = document.getElementById('drawer-gift');
+    const issueDrawer = document.getElementById('drawer-issue');
+    const confirmModal = document.getElementById('deactivate-confirm');
+    const collectModal = document.getElementById('collect-modal');
+    const stkModal = document.getElementById('stk-modal');
+    const submitForm = document.getElementById('gift-deactivate-submit');
+    const submitId = document.getElementById('gift-deactivate-submit-id');
+    const HAS_PAGE_ERROR = !!document.getElementById('gift-page-error');
+    let pendingDeactivateId = null;
+    let activeCardId = null;
+    let collectCardId = null;
+    let stkPollTimer = null;
+    let stkCode = '';
+
+    function money(n) {
+      return Math.round(Number(n) || 0).toLocaleString('en-KE');
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function normalizePhone(raw) {
+      return String(raw || '').trim().replace(/\s+/g, '');
+    }
+
+    function isValidPhone(raw) {
+      return PHONE_RE.test(normalizePhone(raw));
+    }
+
+    function selectedMode() {
+      return document.querySelector('input[name="issue_mode"]:checked')?.value || 'gift';
+    }
+
+    function bodyLocked() {
+      return (
+        drawer?.classList.contains('is-open') ||
+        issueDrawer?.classList.contains('is-open') ||
+        !confirmModal.classList.contains('hidden') ||
+        !collectModal.classList.contains('hidden') ||
+        !stkModal.classList.contains('hidden')
+      );
+    }
+
+    function syncIssueSubmit() {
+      const btn = document.getElementById('issue-submit');
+      const phone = document.getElementById('issue-phone');
+      const amount = Number(document.getElementById('issue-amount')?.value || 0);
+      const mode = selectedMode();
+      const phoneOk = isValidPhone(phone?.value || '');
+      const amountOk = amount >= 100;
+      if (btn) {
+        btn.disabled = !(phoneOk && amountOk);
+        if (mode === 'gift') btn.textContent = 'Issue gift card';
+        else if (mode === 'cash') btn.textContent = 'Sell · cash';
+        else btn.textContent = 'Sell · M-Pesa';
+      }
+      const hint = document.getElementById('phone-hint');
+      if (hint) hint.textContent = '(required)';
+      if (phone) phone.required = true;
+    }
+
+    function openIssueDrawer() {
+      closeDrawer();
+      issueDrawer.classList.remove('hidden');
+      issueDrawer.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      requestAnimationFrame(() => {
+        issueDrawer.classList.add('is-open');
+        if (window.lucide) window.lucide.createIcons();
+        document.getElementById('issue-phone')?.focus();
+      });
+      syncIssueSubmit();
+    }
+
+    function closeIssueDrawer() {
+      if (!issueDrawer || issueDrawer.classList.contains('hidden')) return;
+      issueDrawer.classList.remove('is-open');
+      issueDrawer.setAttribute('aria-hidden', 'true');
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        issueDrawer.classList.add('hidden');
+        if (!bodyLocked()) document.body.classList.remove('overflow-hidden');
+      };
+      const panel = issueDrawer.querySelector('.manage-drawer-panel');
+      if (panel) {
+        panel.addEventListener('transitionend', done, { once: true });
+        setTimeout(done, 320);
+      } else done();
+    }
+
+    document.getElementById('open-issue-gift')?.addEventListener('click', openIssueDrawer);
+    document.querySelectorAll('.js-open-issue-empty').forEach((btn) => {
+      btn.addEventListener('click', openIssueDrawer);
+    });
+    document.querySelectorAll('[data-close-issue]').forEach((el) => {
+      el.addEventListener('click', closeIssueDrawer);
+    });
+
+    document.querySelectorAll('input[name="issue_mode"]').forEach((el) => {
+      el.addEventListener('change', syncIssueSubmit);
+    });
+    document.getElementById('issue-phone')?.addEventListener('input', syncIssueSubmit);
+    document.getElementById('issue-amount')?.addEventListener('input', syncIssueSubmit);
+    syncIssueSubmit();
+
+    document.getElementById('gift-issue-form')?.addEventListener('submit', (e) => {
+      const err = document.getElementById('issue-form-error');
+      err.classList.add('hidden');
+      err.textContent = '';
+      const amount = Number(document.getElementById('issue-amount').value || 0);
+      const phone = normalizePhone(document.getElementById('issue-phone').value);
+      if (!amount || amount < 100) {
+        e.preventDefault();
+        err.textContent = 'Minimum amount is KSh 100.';
+        err.classList.remove('hidden');
+        syncIssueSubmit();
+        return;
+      }
+      if (!phone || !isValidPhone(phone)) {
+        e.preventDefault();
+        err.textContent = 'Enter a valid Kenyan phone (07… or 01…).';
+        err.classList.remove('hidden');
+        syncIssueSubmit();
+      }
+    });
+
+    function openDrawer() {
+      closeIssueDrawer();
+      drawer.classList.remove('hidden');
+      drawer.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      requestAnimationFrame(() => {
+        drawer.classList.add('is-open');
+        if (window.lucide) window.lucide.createIcons();
+      });
+    }
+
+    function closeDrawer() {
+      if (!drawer || drawer.classList.contains('hidden')) return;
+      drawer.classList.remove('is-open');
+      drawer.setAttribute('aria-hidden', 'true');
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        drawer.classList.add('hidden');
+        if (!bodyLocked()) document.body.classList.remove('overflow-hidden');
+      };
+      const panel = drawer.querySelector('.manage-drawer-panel');
+      if (panel) {
+        panel.addEventListener('transitionend', done, { once: true });
+        setTimeout(done, 320);
+      } else done();
+    }
+
+    function openDeactivateConfirm(id, code) {
+      pendingDeactivateId = id;
+      document.getElementById('deactivate-code').textContent = code || 'This card';
+      confirmModal.classList.remove('hidden');
+      confirmModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeDeactivateConfirm() {
+      pendingDeactivateId = null;
+      confirmModal.classList.add('hidden');
+      confirmModal.setAttribute('aria-hidden', 'true');
+      if (!bodyLocked()) document.body.classList.remove('overflow-hidden');
+    }
+
+    function openCollect(card) {
+      collectCardId = card.id;
+      document.getElementById('collect-code').textContent = card.code;
+      document.getElementById('collect-amount').textContent = money(card.initial);
+      document.getElementById('collect-phone').value = card.purchaser_phone || '';
+      document.getElementById('collect-error').classList.add('hidden');
+      collectModal.classList.remove('hidden');
+      collectModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function closeCollect() {
+      collectCardId = null;
+      collectModal.classList.add('hidden');
+      collectModal.setAttribute('aria-hidden', 'true');
+      if (!bodyLocked()) document.body.classList.remove('overflow-hidden');
+    }
+
+    function stopStkPoll() {
+      if (stkPollTimer) {
+        clearInterval(stkPollTimer);
+        stkPollTimer = null;
+      }
+    }
+
+    function setStkWaiting(code) {
+      stkCode = code;
+      document.getElementById('stk-code').textContent = code;
+      document.getElementById('stk-title').textContent = 'Waiting for M-Pesa';
+      document.getElementById('stk-text').textContent = 'Ask the customer to enter their PIN.';
+      const icon = document.getElementById('stk-icon');
+      icon.className = 'mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-caramel-600/20 text-caramel-400';
+      icon.innerHTML = '<i data-lucide="loader-circle" class="h-6 w-6 animate-spin"></i>';
+      document.getElementById('stk-actions').classList.add('hidden');
+      stkModal.classList.remove('hidden');
+      stkModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      if (window.lucide) window.lucide.createIcons();
+      stopStkPoll();
+      stkPollTimer = setInterval(async () => {
+        try {
+          const res = await fetch('/gift-cards/' + encodeURIComponent(code) + '/status/', {
+            headers: { Accept: 'application/json' },
+          });
+          const data = await res.json();
+          if (!data.ok) return;
+          if (data.payment_status === 'PAID') {
+            stopStkPoll();
+            window.location.href = '{% url "kahawa:manage_gift_cards" %}';
+          } else if (data.payment_status === 'FAILED') {
+            stopStkPoll();
+            document.getElementById('stk-title').textContent = 'Payment failed';
+            document.getElementById('stk-text').textContent =
+              'STK timed out or was cancelled. Try again, or save the card unpaid.';
+            icon.className = 'mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/15 text-rose-300';
+            icon.innerHTML = '<i data-lucide="x" class="h-6 w-6"></i>';
+            document.getElementById('stk-actions').classList.remove('hidden');
+            if (window.lucide) window.lucide.createIcons();
+          }
+        } catch (_) {}
+      }, 1500);
+    }
+
+    function closeStkModal() {
+      stopStkPoll();
+      stkModal.classList.add('hidden');
+      stkModal.setAttribute('aria-hidden', 'true');
+      if (!bodyLocked()) document.body.classList.remove('overflow-hidden');
+      if (window.location.search.includes('paying=')) {
+        window.history.replaceState({}, '', '{% url "kahawa:manage_gift_cards" %}');
+      }
+    }
+
+    async function collectPayment(method) {
+      const card = byId[String(collectCardId)];
+      if (!card) return;
+      const errEl = document.getElementById('collect-error');
+      errEl.classList.add('hidden');
+      const phone = normalizePhone(document.getElementById('collect-phone').value);
+      if (method === 'mpesa') {
+        if (!phone || !isValidPhone(phone)) {
+          errEl.textContent = 'Enter a valid Kenyan phone for M-Pesa.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+      }
+      const url = COLLECT_URL_TMPL.replace('__ID__', String(card.id));
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CSRF,
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ method, phone }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          errEl.textContent = data.error || 'Could not collect payment.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        closeCollect();
+        if (data.stk_started) {
+          setStkWaiting(data.code || card.code);
+        } else {
+          window.location.reload();
+        }
+      } catch (_) {
+        errEl.textContent = 'Network error. Try again.';
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    function fillDrawer(card) {
+      activeCardId = card.id;
+      document.getElementById('drawer-gift-title').textContent = card.code;
+      document.getElementById('gift-balance').textContent = 'KSh ' + money(card.balance);
+      document.getElementById('gift-spent').textContent = 'KSh ' + money(card.spent);
+      document.getElementById('gift-initial').textContent = 'KSh ' + money(card.initial);
+      const pct = card.initial > 0 ? Math.min(100, Math.round((card.spent / card.initial) * 100)) : 0;
+      document.getElementById('gift-used-label').textContent = pct + '%';
+      document.getElementById('gift-used-bar').style.width = pct + '%';
+      document.getElementById('gift-status').textContent = card.status_label || card.payment_label || '—';
+      document.getElementById('gift-method').textContent = card.payment_method_label || '—';
+      document.getElementById('gift-created').textContent = card.created_display || '—';
+      document.getElementById('gift-paid').textContent = card.paid_display || '—';
+      document.getElementById('gift-by').textContent = card.created_by ? '@' + card.created_by : '—';
+      document.getElementById('gift-phone').textContent = card.purchaser_phone || card.recipient_phone || '—';
+
+      const list = document.getElementById('gift-spends');
+      const empty = document.getElementById('gift-spends-empty');
+      const spends = card.spends || [];
+      if (!spends.length) {
+        list.innerHTML = '';
+        empty.classList.remove('hidden');
+      } else {
+        empty.classList.add('hidden');
+        list.innerHTML = spends.map((s) => `
+          <li class="rounded-xl bg-ink-950/80 px-3 py-3 ring-1 ring-white/5">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="font-mono text-sm font-extrabold text-white">${escapeHtml(s.order_code)}</p>
+                <p class="mt-0.5 text-xs font-semibold text-slate-500">${escapeHtml(s.customer_name)} · ${escapeHtml(s.created_display)}</p>
+              </div>
+              <p class="shrink-0 text-sm font-extrabold text-caramel-400">− KSh ${money(s.amount)}</p>
+            </div>
+            <p class="mt-2 text-[11px] font-bold text-slate-500">
+              Order KSh ${money(s.order_total)} · ${escapeHtml(s.status_label)} · ${escapeHtml(s.payment_label)}
+            </p>
+          </li>
+        `).join('');
+      }
+
+      const needsPay = !!card.needs_payment;
+      const canDeact = card.payment_status === 'PAID' && card.is_active;
+      document.getElementById('gift-collect-btn').classList.toggle('hidden', !needsPay);
+      document.getElementById('gift-deactivate-btn').classList.toggle('hidden', !canDeact);
+    }
+
+    document.querySelectorAll('.js-open-gift').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const card = byId[btn.dataset.id];
+        if (!card) return;
+        fillDrawer(card);
+        openDrawer();
+      });
+    });
+
+    document.querySelectorAll('.js-collect-gift').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const card = byId[btn.dataset.id];
+        if (!card) return;
+        openCollect(card);
+      });
+    });
+
+    document.querySelectorAll('.js-deactivate-gift').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDeactivateConfirm(btn.dataset.id, btn.dataset.code);
+      });
+    });
+
+    document.getElementById('gift-deactivate-btn')?.addEventListener('click', () => {
+      const card = byId[String(activeCardId)];
+      if (!card) return;
+      openDeactivateConfirm(card.id, card.code);
+    });
+
+    document.getElementById('gift-collect-btn')?.addEventListener('click', () => {
+      const card = byId[String(activeCardId)];
+      if (!card) return;
+      openCollect(card);
+    });
+
+    document.querySelectorAll('[data-deactivate-cancel]').forEach((el) => {
+      el.addEventListener('click', closeDeactivateConfirm);
+    });
+    document.getElementById('deactivate-confirm-btn')?.addEventListener('click', () => {
+      if (!pendingDeactivateId) return;
+      submitId.value = pendingDeactivateId;
+      submitForm.submit();
+    });
+
+    document.querySelectorAll('[data-collect-cancel]').forEach((el) => {
+      el.addEventListener('click', closeCollect);
+    });
+    document.getElementById('collect-cash-btn')?.addEventListener('click', () => collectPayment('cash'));
+    document.getElementById('collect-mpesa-btn')?.addEventListener('click', () => collectPayment('mpesa'));
+
+    document.getElementById('stk-dismiss-btn')?.addEventListener('click', () => {
+      closeStkModal();
+      window.location.href = '{% url "kahawa:manage_gift_cards" %}';
+    });
+    document.getElementById('stk-retry-btn')?.addEventListener('click', async () => {
+      const card = Object.values(byId).find((c) => c.code === stkCode);
+      if (!card) {
+        closeStkModal();
+        return;
+      }
+      collectCardId = card.id;
+      document.getElementById('collect-phone').value = card.purchaser_phone || '';
+      closeStkModal();
+      openCollect(card);
+    });
+
+    document.querySelectorAll('[data-close-gift]').forEach((el) => {
+      el.addEventListener('click', closeDrawer);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!stkModal.classList.contains('hidden')) return;
+      if (!collectModal.classList.contains('hidden')) {
+        closeCollect();
+        return;
+      }
+      if (!confirmModal.classList.contains('hidden')) {
+        closeDeactivateConfirm();
+        return;
+      }
+      if (issueDrawer?.classList.contains('is-open')) {
+        closeIssueDrawer();
+        return;
+      }
+      if (drawer?.classList.contains('is-open')) closeDrawer();
+    });
+
+    // Resume STK wait after M-Pesa issue redirect
+    if (PAYING_CODE) {
+      setStkWaiting(PAYING_CODE);
+    }
+
+    // Re-open issue drawer when server returned a validation error
+    if (HAS_PAGE_ERROR) {
+      openIssueDrawer();
+      const pageErr = document.getElementById('gift-page-error');
+      const formErr = document.getElementById('issue-form-error');
+      if (pageErr && formErr) {
+        formErr.textContent = pageErr.textContent.trim();
+        formErr.classList.remove('hidden');
+      }
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% if item.customization.components %}
+  <p class="text-xs font-semibold text-espresso-700/55">
+    {% for part in item.customization.components %}{{ part.quantity }}× {{ part.name }}{% if not forloop.last %} · {% endif %}{% endfor %}
+  </p>
+{% elif item.customization.size or item.customization.milk or item.customization.extra_shot %}
+  <p class="text-xs font-semibold text-espresso-700/55">
+    {{ item.customization.size }}{% if item.customization.milk %} · {{ item.customization.milk }} milk{% endif %}{% if item.customization.extra_shot %} · Extra shot{% endif %}
+  </p>
+{% endif %}

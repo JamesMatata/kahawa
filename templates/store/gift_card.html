@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Gift cards{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+  <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">Gift cards</h1>
+      <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+        Buy with M-Pesa, share on WhatsApp, redeem at checkout.
+      </p>
+    </div>
+    <a href="{% url 'kahawa:menu' %}" class="inline-flex items-center gap-2 rounded-full border border-espresso-800/15 bg-cream-50 px-5 py-2.5 text-sm font-extrabold text-espresso-800 transition hover:bg-cream-100">
+      <i data-lucide="coffee" class="h-4 w-4"></i>
+      Menu
+    </a>
+  </div>
+
+  {% if error %}
+    <p class="mb-6 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-800" role="alert">{{ error }}</p>
+  {% endif %}
+
+  {% if not is_authenticated %}
+    <p class="mb-6 rounded-2xl bg-cream-100 px-4 py-3 text-sm font-semibold text-espresso-800 ring-1 ring-caramel-400/15">
+      Sign in to keep gift cards across devices.
+      <a href="{% url 'kahawa:login' %}?next={% url 'kahawa:gift_card_buy' %}" class="font-extrabold text-caramel-700 hover:text-caramel-600">Sign in</a>
+      ·
+      <a href="{% url 'kahawa:register' %}" class="font-extrabold text-caramel-700 hover:text-caramel-600">Create account</a>
+    </p>
+  {% endif %}
+
+  {% if my_cards %}
+    <h2 class="mb-3 font-display text-xl font-semibold text-espresso-900">Your gift cards</h2>
+    <ul class="mb-10 space-y-3">
+      {% for card in my_cards %}
+        <li>
+          <a href="{% url 'kahawa:gift_card_success' code=card.code %}" class="block rounded-2xl bg-cream-50 p-4 ring-1 ring-caramel-400/15 transition hover:bg-cream-100/80 sm:p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="font-display text-lg font-semibold text-espresso-900">{{ card.code }}</p>
+                <p class="mt-0.5 text-sm font-semibold text-espresso-700/55">{{ card.created_at|date:"D, M j · g:i A" }}</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span class="rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide
+                  {% if card.payment_status == 'PAID' %}bg-emerald-100 text-emerald-800
+                  {% elif card.payment_status == 'PENDING' %}bg-amber-100 text-amber-900
+                  {% else %}bg-red-100 text-red-800{% endif %}">
+                  {{ card.get_payment_status_display }}
+                </span>
+              </div>
+            </div>
+            <p class="mt-3 text-sm font-extrabold text-espresso-900">
+              {% if card.payment_status == 'PAID' %}
+                KSh {{ card.balance|floatformat:0 }}
+                <span class="font-semibold text-espresso-700/45">balance · of KSh {{ card.initial_balance|floatformat:0 }}</span>
+              {% else %}
+                KSh {{ card.initial_balance|floatformat:0 }}
+              {% endif %}
+            </p>
+            {% if card.recipient_phone %}
+              <p class="mt-1 text-xs font-semibold text-espresso-700/50">To {{ card.recipient_phone }}</p>
+            {% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <div class="rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15 sm:p-8">
+    <h2 class="font-display text-xl font-semibold text-espresso-900 sm:text-2xl">Buy a gift card</h2>
+    <p class="mt-1 text-sm font-semibold text-espresso-700/65">Choose an amount and pay with M-Pesa.</p>
+
+    <form method="post" id="gift-buy-form" class="mt-6 space-y-5" novalidate>
+      {% csrf_token %}
+      <fieldset>
+        <legend class="mb-3 text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Amount</legend>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {% for amount in amounts %}
+            <label class="cursor-pointer">
+              <input type="radio" name="amount" value="{{ amount }}" class="peer sr-only" {% if forloop.first %}checked{% endif %} required>
+              <span class="flex items-center justify-center rounded-2xl bg-cream-100 px-4 py-3.5 text-sm font-extrabold text-espresso-800 ring-1 ring-caramel-400/20 transition peer-checked:bg-espresso-800 peer-checked:text-cream-50 peer-checked:ring-espresso-800">
+                KSh {{ amount }}
+              </span>
+            </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Your M-Pesa phone</span>
+          <input
+            type="tel"
+            name="phone"
+            id="gift-buy-phone"
+            required
+            value="{{ prefill.phone }}"
+            placeholder="07XXXXXXXX"
+            inputmode="tel"
+            autocomplete="tel"
+            class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+          >
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Recipient phone <span class="normal-case tracking-normal text-espresso-700/40">(optional)</span></span>
+          <input
+            type="tel"
+            name="recipient_phone"
+            id="gift-buy-recipient"
+            placeholder="07XXXXXXXX"
+            inputmode="tel"
+            class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+          >
+        </label>
+      </div>
+      <p id="gift-buy-error" class="hidden text-sm font-bold text-red-700"></p>
+      <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 py-3.5 text-sm font-extrabold text-cream-50 transition hover:bg-caramel-700 sm:w-auto sm:px-8">
+        <i data-lucide="smartphone" class="h-4 w-4"></i>
+        Pay with M-Pesa
+      </button>
+    </form>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const form = document.getElementById('gift-buy-form');
+    if (!form) return;
+    const PHONE_RE = /^(?:0[17]\d{8}|\+?254[17]\d{8})$/;
+    const clean = (v) => String(v || '').trim().replace(/\s+/g, '');
+    form.addEventListener('submit', (e) => {
+      const err = document.getElementById('gift-buy-error');
+      err.classList.add('hidden');
+      const phone = clean(document.getElementById('gift-buy-phone').value);
+      const recipient = clean(document.getElementById('gift-buy-recipient').value);
+      if (!phone || !PHONE_RE.test(phone)) {
+        e.preventDefault();
+        err.textContent = 'Enter a valid Kenyan phone (07… or 01…).';
+        err.classList.remove('hidden');
+        return;
+      }
+      if (recipient && !PHONE_RE.test(recipient)) {
+        e.preventDefault();
+        err.textContent = 'Recipient phone looks invalid.';
+        err.classList.remove('hidden');
+      }
+    });
+  })();
+</script>
+{% endblock %}

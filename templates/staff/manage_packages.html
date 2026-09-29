@@ -1,0 +1,443 @@
+{% extends "staff/base_manage.html" %}
+
+{% block title %}Packages{% endblock %}
+
+{% block extra_head %}
+<style>
+  .manage-drawer { pointer-events: none; }
+  .manage-drawer.is-open { pointer-events: auto; }
+  .manage-drawer-backdrop { opacity: 0; transition: opacity 0.25s ease; }
+  .manage-drawer.is-open .manage-drawer-backdrop { opacity: 1; }
+  .manage-drawer-panel {
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .manage-drawer.is-open .manage-drawer-panel { transform: translateY(0); }
+  @media (min-width: 768px) {
+    .manage-drawer-panel { transform: translateX(100%); }
+    .manage-drawer.is-open .manage-drawer-panel { transform: translateX(0); }
+  }
+  .package-scroll { overflow-anchor: none; }
+  .package-mode {
+    position: relative;
+    display: block;
+    cursor: pointer;
+  }
+  .package-mode > input {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    margin: 0;
+    cursor: pointer;
+    opacity: 0;
+  }
+  .package-mode-face {
+    display: block;
+    border-radius: 0.625rem;
+    background: #07080C;
+    padding: 0.75rem 0.85rem;
+    font-size: 0.875rem;
+    font-weight: 800;
+    color: #cbd5e1;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+  .package-mode > input:checked + .package-mode-face {
+    background: rgba(217, 119, 6, 0.2);
+    color: #F0A868;
+    box-shadow: inset 0 0 0 1px #D97706;
+  }
+  .package-mode > input:focus-visible + .package-mode-face {
+    box-shadow: inset 0 0 0 2px #E8914A;
+  }
+  .package-day { position: relative; }
+  .package-day > input[type="checkbox"] {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    margin: 0;
+    cursor: pointer;
+    opacity: 0;
+  }
+  #package-image-preview-wrap { aspect-ratio: 16 / 9; }
+  .package-time-field {
+    overflow: hidden;
+    min-width: 0;
+  }
+  .package-time-field input {
+    color-scheme: dark;
+    display: block;
+    width: 100%;
+    height: 2.75rem;
+    max-height: 2.75rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+  <div class="min-w-0">
+    <h1 class="font-display text-2xl font-semibold text-white sm:text-3xl">Packages</h1>
+    <p class="mt-1 text-sm font-semibold text-slate-400">Combine products into one discounted price</p>
+  </div>
+  <a href="{% url 'kahawa:manage_packages' %}?new=1" class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500 sm:w-auto">
+    <i data-lucide="plus" class="h-4 w-4"></i>
+    Add package
+  </a>
+</div>
+
+<ul class="manage-board divide-y divide-white/5 overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5">
+  {% for package in packages %}
+    <li class="package-row flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
+      <div class="min-w-0">
+        <p class="text-sm font-extrabold text-white">{{ package.name }}</p>
+        <p class="mt-0.5 text-xs font-semibold text-slate-500">
+          KSh {{ package.price|floatformat:0 }}
+          · {% if package.compare_at > package.price %}was KSh {{ package.compare_at|floatformat:0 }} · {% endif %}
+          {{ package.get_schedule_mode_display }}
+          · {% if package.is_live %}Live now{% elif package.is_active %}Scheduled{% else %}Off{% endif %}
+        </p>
+      </div>
+      <div class="package-actions">
+        <a href="{% url 'kahawa:manage_packages' %}?edit={{ package.id }}" class="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-300">Edit</a>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="toggle">
+          <input type="hidden" name="package_id" value="{{ package.id }}">
+          <button type="submit" class="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-300">{{ package.is_active|yesno:"Turn off,Turn on" }}</button>
+        </form>
+        <form method="post" onsubmit="return confirm('Delete this package?');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="package_id" value="{{ package.id }}">
+          <button type="submit" class="rounded-full border border-rose-500/30 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-rose-300">Delete</button>
+        </form>
+      </div>
+    </li>
+  {% empty %}
+    <li class="px-5 py-14 text-center">
+      <p class="font-display text-lg text-slate-300">No packages yet</p>
+      <p class="mt-1 text-sm font-semibold text-slate-500">Add a package to sell a few products at one price.</p>
+      <a href="{% url 'kahawa:manage_packages' %}?new=1" class="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">
+        <i data-lucide="plus" class="h-4 w-4"></i>
+        Add package
+      </a>
+    </li>
+  {% endfor %}
+</ul>
+{% endblock %}
+
+{% block manage_overlays %}
+<div id="drawer-package" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="drawer-package-title" data-open="{% if open_drawer %}1{% else %}0{% endif %}">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-package></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,28rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="drawer-package-title" class="font-display text-xl font-semibold text-white">{% if package_form.id %}Edit package{% else %}New package{% endif %}</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-package aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <form method="post" enctype="multipart/form-data" class="flex min-h-0 flex-1 flex-col">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      <input type="hidden" name="package_id" value="{{ package_form.id }}">
+      <div class="package-scroll min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+        {% if error %}
+          <p class="rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300 ring-1 ring-red-500/20">{{ error }}</p>
+        {% endif %}
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Name</span>
+          <input type="text" name="name" required value="{{ package_form.name }}" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Package price (KSh)</span>
+            <input type="number" name="price" min="1" step="1" required value="{{ package_form.price }}" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Tax type</span>
+            <select name="tax_type" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+              {% for code, label in tax_types %}
+                <option value="{{ code }}" {% if package_form.tax_type == code %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div>
+          <p class="mb-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Photo</p>
+          <p class="mb-2 text-xs font-semibold text-slate-500">Use a 16:9 photo. Anything else is cropped to fit.</p>
+          <div id="package-image-preview-wrap" class="overflow-hidden rounded-xl bg-ink-950 ring-1 ring-white/10{% if not package_form.image_src %} hidden{% endif %}">
+            <img id="package-image-preview" src="{{ package_form.image_src }}" alt="" class="h-full w-full object-cover">
+          </div>
+          <label class="mt-3 block">
+            <span class="mb-1.5 block text-xs font-bold text-slate-300">Upload a photo</span>
+            <input type="file" name="image" id="package-image-file" accept="image/jpeg,image/png,image/webp" class="block w-full text-xs font-semibold text-slate-400 file:mr-3 file:rounded-full file:border-0 file:bg-caramel-600 file:px-3 file:py-1.5 file:text-xs file:font-extrabold file:text-white hover:file:bg-caramel-500">
+          </label>
+          <label class="mt-3 block">
+            <span class="mb-1.5 block text-xs font-bold text-slate-400">Or paste an image link</span>
+            <input type="url" name="image_url" id="package-image-url" value="{{ package_form.image_url }}" placeholder="https://…" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+          </label>
+          {% if package_form.has_upload %}
+            <label class="mt-3 inline-flex items-center gap-2 text-xs font-bold text-slate-400">
+              <input type="checkbox" name="clear_image" class="h-4 w-4 rounded border-white/20 bg-ink-950 text-caramel-600">
+              Remove the uploaded photo
+            </label>
+          {% endif %}
+        </div>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Description</span>
+          <textarea name="description" rows="2" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">{{ package_form.description }}</textarea>
+        </label>
+
+        <div>
+          <p class="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Included products</p>
+          <div id="package-items" class="space-y-2">
+            {% for row in package_form.items %}
+              <div class="package-item-row grid grid-cols-[minmax(0,1fr)_5rem_auto] gap-2">
+                <select name="item_product" class="rounded-2xl bg-ink-950 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/10">
+                  <option value="">Choose product</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}" {% if product.id == row.product_id %}selected{% endif %}>{{ product.name }}</option>
+                  {% endfor %}
+                </select>
+                <input type="number" name="item_qty" min="1" value="{{ row.quantity }}" class="rounded-2xl bg-ink-950 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/10">
+                <button type="button" class="js-remove-item rounded-full px-3 text-xs font-extrabold text-slate-400 hover:text-rose-300">Remove</button>
+              </div>
+            {% endfor %}
+          </div>
+          <button type="button" id="add-package-item" class="mt-2 text-xs font-extrabold text-caramel-400 hover:text-caramel-300">Add product</button>
+        </div>
+
+        <div>
+          <p class="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">When it appears</p>
+          <div class="grid gap-2">
+            <label class="package-mode">
+              <input type="radio" name="schedule_mode" value="ALWAYS" {% if package_form.schedule_mode == 'ALWAYS' %}checked{% endif %}>
+              <span class="package-mode-face">Every day</span>
+            </label>
+            <label class="package-mode">
+              <input type="radio" name="schedule_mode" value="WEEKDAYS" {% if package_form.schedule_mode == 'WEEKDAYS' %}checked{% endif %}>
+              <span class="package-mode-face">Weekdays</span>
+            </label>
+            <label class="package-mode">
+              <input type="radio" name="schedule_mode" value="CUSTOM" {% if package_form.schedule_mode == 'CUSTOM' %}checked{% endif %}>
+              <span class="package-mode-face">Custom</span>
+            </label>
+          </div>
+          <div id="package-days" class="package-days mt-3 flex flex-wrap gap-2">
+            {% for value, label in weekdays %}
+              <label class="package-day inline-flex cursor-pointer items-center rounded-full bg-ink-950 px-3 py-2 text-xs font-extrabold text-slate-300 ring-1 ring-white/10 has-[:checked]:bg-caramel-600/20 has-[:checked]:text-caramel-300 has-[:checked]:ring-caramel-500/40">
+                <input type="checkbox" name="weekdays" value="{{ value }}" {% if package_form.schedule_mode == 'CUSTOM' %}{% if value in package_form.weekdays %}checked{% endif %}{% elif package_form.schedule_mode == 'WEEKDAYS' %}{% if value < 5 %}checked{% endif %}{% else %}checked{% endif %}>
+                <span class="relative z-[1]">{{ label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+          <p id="package-schedule-note" class="mt-2 text-xs font-semibold text-slate-500">{% if package_form.schedule_mode == 'CUSTOM' %}Choose the days this package appears. Set daily hours if you want.{% elif package_form.schedule_mode == 'WEEKDAYS' %}Monday to Friday is selected. Change a day and this switches to Custom.{% else %}Every day is selected. Set Ends if it should stop. Turn a day off and this switches to Custom.{% endif %}</p>
+          <div class="mt-3 grid gap-3">
+            <label class="block min-w-0">
+              <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Starts</span>
+              <div class="package-time-field">
+                <input type="datetime-local" name="starts_at" value="{{ package_form.starts_at }}" class="rounded-xl bg-ink-950 px-4 text-sm font-bold text-white ring-1 ring-white/10">
+              </div>
+            </label>
+            <label class="block min-w-0">
+              <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Ends</span>
+              <div class="package-time-field">
+                <input type="datetime-local" name="ends_at" value="{{ package_form.ends_at }}" class="rounded-xl bg-ink-950 px-4 text-sm font-bold text-white ring-1 ring-white/10">
+              </div>
+            </label>
+          </div>
+          <div id="package-hours" class="mt-3 grid gap-3{% if package_form.schedule_mode != 'WEEKDAYS' and package_form.schedule_mode != 'CUSTOM' %} hidden{% endif %}">
+            <label class="block min-w-0">
+              <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Daily from</span>
+              <div class="package-time-field">
+                <input type="time" name="window_start" value="{{ package_form.window_start }}" class="rounded-xl bg-ink-950 px-4 text-sm font-bold text-white ring-1 ring-white/10">
+              </div>
+            </label>
+            <label class="block min-w-0">
+              <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Daily until</span>
+              <div class="package-time-field">
+                <input type="time" name="window_end" value="{{ package_form.window_end }}" class="rounded-xl bg-ink-950 px-4 text-sm font-bold text-white ring-1 ring-white/10">
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <label class="inline-flex items-center gap-2 text-sm font-bold text-slate-300">
+          <input type="checkbox" name="is_active" class="h-4 w-4 rounded border-white/20 bg-ink-950 text-caramel-600" {% if package_form.is_active %}checked{% endif %}>
+          Active
+        </label>
+      </div>
+      <div class="flex shrink-0 gap-2 border-t border-white/5 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-close-package class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Cancel</button>
+        <button type="submit" class="min-h-11 flex-1 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">Save package</button>
+      </div>
+    </form>
+  </aside>
+</div>
+
+<template id="package-item-template">
+  <div class="package-item-row grid grid-cols-[minmax(0,1fr)_5rem_auto] gap-2">
+    <select name="item_product" class="rounded-2xl bg-ink-950 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/10">
+      <option value="">Choose product</option>
+      {% for product in products %}
+        <option value="{{ product.id }}">{{ product.name }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="item_qty" min="1" value="1" class="rounded-2xl bg-ink-950 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/10">
+    <button type="button" class="js-remove-item rounded-full px-3 text-xs font-extrabold text-slate-400 hover:text-rose-300">Remove</button>
+  </div>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const drawer = document.getElementById('drawer-package');
+    const host = document.getElementById('package-items');
+    const tpl = document.getElementById('package-item-template');
+
+    function openDrawer() {
+      if (!drawer) return;
+      drawer.classList.remove('hidden');
+      drawer.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      requestAnimationFrame(() => {
+        drawer.classList.add('is-open');
+        if (window.lucide) window.lucide.createIcons();
+        drawer.querySelector('input[name="name"]')?.focus();
+      });
+    }
+
+    function closeDrawer() {
+      if (!drawer || drawer.classList.contains('hidden')) return;
+      drawer.classList.remove('is-open');
+      drawer.setAttribute('aria-hidden', 'true');
+      const done = () => {
+        drawer.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+      };
+      const panel = drawer.querySelector('.manage-drawer-panel');
+      if (panel) {
+        panel.addEventListener('transitionend', done, { once: true });
+        setTimeout(done, 320);
+      } else {
+        done();
+      }
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('new') || url.searchParams.has('edit')) {
+        url.searchParams.delete('new');
+        url.searchParams.delete('edit');
+        history.replaceState({}, '', url.pathname + url.search);
+      }
+    }
+
+    document.getElementById('add-package-item')?.addEventListener('click', () => {
+      host.appendChild(tpl.content.cloneNode(true));
+    });
+    host?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-remove-item');
+      if (!btn) return;
+      const rows = host.querySelectorAll('.package-item-row');
+      if (rows.length <= 2) return;
+      btn.closest('.package-item-row')?.remove();
+    });
+    document.querySelectorAll('[data-close-package]').forEach((el) => {
+      el.addEventListener('click', closeDrawer);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && drawer?.classList.contains('is-open')) closeDrawer();
+    });
+    if (drawer?.dataset.open === '1') openDrawer();
+
+    const WEEKDAYS = ['0', '1', '2', '3', '4'];
+    const ALL_DAYS = ['0', '1', '2', '3', '4', '5', '6'];
+    const scheduleNotes = {
+      ALWAYS: 'Every day is selected. Set Ends if it should stop. Turn a day off and this switches to Custom.',
+      WEEKDAYS: 'Monday to Friday is selected. Change a day and this switches to Custom.',
+      CUSTOM: 'Choose the days this package appears. Set daily hours if you want.',
+    };
+
+    function currentChoice() {
+      return drawer.querySelector('input[name="schedule_mode"]:checked')?.value || 'ALWAYS';
+    }
+
+    function setDays(values) {
+      const picked = new Set(values);
+      drawer.querySelectorAll('#package-days input[name="weekdays"]').forEach((input) => {
+        input.checked = picked.has(input.value);
+      });
+    }
+
+    function checkedDays() {
+      return Array.from(drawer.querySelectorAll('#package-days input[name="weekdays"]:checked'))
+        .map((input) => input.value)
+        .sort();
+    }
+
+    function paintSchedule() {
+      const mode = currentChoice();
+      const hours = document.getElementById('package-hours');
+      const note = document.getElementById('package-schedule-note');
+      hours?.classList.toggle('hidden', mode !== 'WEEKDAYS' && mode !== 'CUSTOM');
+      if (note) note.textContent = scheduleNotes[mode] || '';
+    }
+
+    function choose(mode, preset) {
+      const input = drawer.querySelector('input[name="schedule_mode"][value="' + mode + '"]');
+      if (input) input.checked = true;
+      if (preset) setDays(preset);
+      paintSchedule();
+    }
+
+    function syncChoiceFromDays() {
+      const key = checkedDays().join(',');
+      const current = currentChoice();
+      let next = 'CUSTOM';
+      if (key === ALL_DAYS.join(',')) next = 'ALWAYS';
+      else if (key === WEEKDAYS.join(',')) next = 'WEEKDAYS';
+      if (next !== current) {
+        const input = drawer.querySelector('input[name="schedule_mode"][value="' + next + '"]');
+        if (input) input.checked = true;
+      }
+      paintSchedule();
+    }
+
+    drawer.querySelectorAll('input[name="schedule_mode"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        if (input.value === 'ALWAYS') choose(input.value, ALL_DAYS);
+        else if (input.value === 'WEEKDAYS') choose(input.value, WEEKDAYS);
+        else choose('CUSTOM');
+      });
+    });
+    document.getElementById('package-days')?.addEventListener('change', syncChoiceFromDays);
+    paintSchedule();
+
+    const previewWrap = document.getElementById('package-image-preview-wrap');
+    const previewImg = document.getElementById('package-image-preview');
+    const imageFile = document.getElementById('package-image-file');
+    const imageUrl = document.getElementById('package-image-url');
+
+    function showPreview(src) {
+      if (!previewWrap || !previewImg) return;
+      if (!src) {
+        previewWrap.classList.add('hidden');
+        previewImg.removeAttribute('src');
+        return;
+      }
+      previewImg.src = src;
+      previewWrap.classList.remove('hidden');
+    }
+
+    imageFile?.addEventListener('change', () => {
+      const file = imageFile.files && imageFile.files[0];
+      if (!file) return;
+      showPreview(URL.createObjectURL(file));
+    });
+    imageUrl?.addEventListener('change', () => {
+      if (imageFile?.files?.length) return;
+      showPreview(imageUrl.value.trim());
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Verify phone{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-md px-4 pt-12 pb-20 sm:px-6 sm:pb-24">
+  <h1 class="font-display text-3xl font-semibold text-espresso-900">Verify phone</h1>
+  <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+    Enter the 6-digit code sent to <span class="font-extrabold text-espresso-900">{{ phone }}</span>.
+  </p>
+
+  <form method="post" class="mt-8 space-y-4 rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15">
+    {% csrf_token %}
+    {% if error %}
+      <p class="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-800" role="alert">{{ error }}</p>
+    {% endif %}
+    {% if info %}
+      <p class="rounded-2xl border border-caramel-400/30 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800">{{ info }}</p>
+    {% endif %}
+    <label class="block">
+      <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">SMS code</span>
+      <input type="text" name="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6" required autocomplete="one-time-code" class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-center text-lg font-extrabold tracking-[0.3em] text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500">
+    </label>
+    <button type="submit" name="action" value="verify" class="flex w-full items-center justify-center rounded-full bg-caramel-600 py-3.5 text-sm font-extrabold text-cream-50 hover:bg-caramel-700">
+      Verify &amp; create account
+    </button>
+  </form>
+
+  <form method="post" class="mt-4 text-center">
+    {% csrf_token %}
+    <button type="submit" name="action" value="resend" class="text-sm font-bold text-caramel-700 hover:text-caramel-600">
+      Resend code
+    </button>
+  </form>
+</section>
+{% endblock %}

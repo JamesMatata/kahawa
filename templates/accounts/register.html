@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Create account{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-md px-4 pt-12 pb-20 sm:px-6 sm:pb-24">
+  <h1 class="font-display text-3xl font-semibold text-espresso-900">Create account</h1>
+  <p class="mt-2 text-sm font-semibold text-espresso-700/65">We’ll verify your phone with an SMS code.</p>
+
+  <form method="post" class="mt-8 space-y-4 rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15">
+    {% csrf_token %}
+    {% if error %}
+      <p class="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-800" role="alert">{{ error }}</p>
+    {% endif %}
+    <label class="block">
+      <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Full name</span>
+      <input type="text" name="full_name" value="{{ form.full_name }}" required maxlength="100" class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500">
+    </label>
+    <label class="block">
+      <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Phone</span>
+      <input type="tel" name="phone" value="{{ form.phone }}" required placeholder="07XXXXXXXX" class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500">
+    </label>
+    <label class="block">
+      <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Password</span>
+      <input type="password" name="password" required minlength="8" class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500">
+    </label>
+    <label class="block">
+      <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Confirm password</span>
+      <input type="password" name="password2" required minlength="8" class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500">
+    </label>
+    <button type="submit" class="flex w-full items-center justify-center rounded-full bg-caramel-600 py-3.5 text-sm font-extrabold text-cream-50 hover:bg-caramel-700">
+      Send verification code
+    </button>
+  </form>
+
+  <p class="mt-6 text-center text-sm font-semibold text-espresso-700/65">
+    Already have an account?
+    <a href="{% url 'kahawa:login' %}" class="font-extrabold text-caramel-700 hover:text-caramel-600">Sign in</a>
+  </p>
+</section>
+{% endblock %}

@@ -1,0 +1,11 @@
+{
+  "name": "kahawa",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/tailwind.css -o ./static/css/kahawa.css --minify",
+    "watch:css": "tailwindcss -i ./src/tailwind.css -o ./static/css/kahawa.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

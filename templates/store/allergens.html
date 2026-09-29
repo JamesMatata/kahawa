@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Allergens{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+  <h1 class="font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">Allergens</h1>
+  <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+    Common allergens for items on our menu. Ask staff if you have a severe allergy —
+    our kitchen handles milk, gluten, and nuts.
+  </p>
+
+  {% if products_with_allergens %}
+    <ul class="mt-8 divide-y divide-caramel-400/15 rounded-3xl bg-cream-50 ring-1 ring-caramel-400/15">
+      {% for product in products_with_allergens %}
+        <li class="flex flex-wrap items-baseline justify-between gap-2 px-5 py-4">
+          <div>
+            <p class="text-sm font-extrabold text-espresso-900">{{ product.name }}</p>
+            <p class="text-xs font-semibold text-espresso-700/50">{{ product.category.name }}</p>
+          </div>
+          <p class="text-sm font-bold text-caramel-700">{{ product.allergens }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="mt-8 rounded-3xl bg-cream-50 px-5 py-8 text-center text-sm font-semibold text-espresso-700/60 ring-1 ring-caramel-400/15">
+      Allergen notes will appear here as we add them to the menu.
+    </p>
+  {% endif %}
+
+  <p class="mt-6 text-sm font-semibold text-espresso-700/65">
+    Questions?
+    <a href="tel:{{ cafe.phone_tel }}" class="font-extrabold text-caramel-700 hover:text-caramel-600">{{ cafe.phone }}</a>
+  </p>
+</section>
+{% endblock %}

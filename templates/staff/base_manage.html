@@ -1,0 +1,265 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>{% block title %}Manage{% endblock %} · Kahawa</title>
+  <link rel="stylesheet" href="{% static 'css/kahawa.css' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="{% static 'css/scrollbar.css' %}">
+  <link rel="stylesheet" href="{% static 'css/controls.css' %}">
+  <link rel="stylesheet" href="{% static 'css/manage.css' %}">
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .font-display { font-family: 'Fredoka', system-ui, sans-serif; }
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.55; }
+    }
+    .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+    #manage-sidebar {
+      top: var(--manage-topbar-offset);
+      width: min(18rem, 86vw);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    #manage-sidebar.is-open { transform: translateX(0); }
+    #sidebar-backdrop {
+      top: var(--manage-topbar-offset);
+    }
+    @media (min-width: 1024px) {
+      #manage-sidebar {
+        top: 0;
+        width: 14rem;
+        transform: none !important;
+        padding-bottom: 0;
+      }
+    }
+    body.manage-nav-open { overflow: hidden; }
+    /* Status slot: keep topbar from overflowing on narrow phones */
+    #manage-topbar-status {
+      max-width: min(58vw, 14rem);
+    }
+    @media (min-width: 640px) {
+      #manage-topbar-status { max-width: none; }
+    }
+    :root {
+      --manage-topbar-offset: 3.5rem;
+    }
+    @supports (top: env(safe-area-inset-top)) {
+      :root {
+        --manage-topbar-offset: calc(3.5rem + env(safe-area-inset-top, 0px));
+      }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="flex h-full min-h-full flex-col overflow-x-hidden bg-ink-950 text-slate-100 antialiased">
+
+  {# Full-width top nav #}
+  <header class="relative z-50 shrink-0 border-b border-white/5 bg-ink-900/95 backdrop-blur-xl" style="padding-top: env(safe-area-inset-top, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
+    <div class="flex h-14 items-center justify-between gap-2 px-3 sm:gap-3 sm:px-4">
+      <div class="flex min-w-0 items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          id="sidebar-toggle"
+          class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-200 transition hover:bg-white/5 active:bg-white/10 lg:hidden"
+          aria-label="Open menu"
+          aria-expanded="false"
+          aria-controls="manage-sidebar"
+        >
+          <i data-lucide="menu" class="js-nav-icon-menu h-5 w-5"></i>
+          <i data-lucide="x" class="js-nav-icon-close hidden h-5 w-5"></i>
+        </button>
+        <a href="{% url 'kahawa:manage_entry' %}" class="flex min-w-0 items-center">
+          <img
+            src="{% static 'images/kahawa-logo.png' %}"
+            alt="Kahawa"
+            class="h-8 w-auto max-w-[7.5rem] object-contain object-left brightness-0 invert sm:h-9 sm:max-w-none"
+          >
+        </a>
+      </div>
+      <div id="manage-topbar-status" class="flex min-w-0 shrink items-center justify-end gap-1.5 sm:gap-3">
+        {% block topbar_status %}
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-400 ring-1 ring-emerald-500/20 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-xs">
+            <span class="relative flex h-2 w-2 shrink-0">
+              <span class="pulse-dot absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+            </span>
+            <span class="truncate">Online</span>
+          </span>
+        {% endblock %}
+      </div>
+    </div>
+  </header>
+
+  {# Body row: sidebar + content — fills remaining height #}
+  <div class="relative z-10 flex min-h-0 min-w-0 flex-1 overflow-hidden">
+    <button
+      type="button"
+      id="sidebar-backdrop"
+      class="fixed inset-x-0 bottom-0 z-30 hidden bg-black/55 backdrop-blur-[2px] lg:hidden"
+      aria-label="Close menu"
+    ></button>
+
+    <aside
+      id="manage-sidebar"
+      class="fixed bottom-0 left-0 z-40 flex -translate-x-full flex-col border-r border-white/5 bg-ink-900 shadow-2xl shadow-black/40 transition-transform duration-200 ease-out lg:static lg:z-0 lg:h-full lg:translate-x-0 lg:self-stretch lg:shadow-none"
+      aria-label="Manage navigation"
+    >
+      <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-3 text-sm" id="manage-nav">
+        {% if 'ops.view' in perms %}
+        <a href="{% url 'kahawa:staff_dashboard' %}" class="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-300 transition hover:bg-white/5 hover:text-white {% if page == 'ops' %}bg-white/5 text-white{% endif %}">
+          <i data-lucide="layout-dashboard" class="h-4 w-4 shrink-0 text-caramel-400"></i>
+          Live ops
+        </a>
+        {% endif %}
+        {% if 'analytics.view' in perms %}
+        <a href="{% url 'kahawa:sales_history' %}" class="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-300 transition hover:bg-white/5 hover:text-white {% if page == 'sales' %}bg-white/5 text-white{% endif %}">
+          <i data-lucide="chart-column" class="h-4 w-4 shrink-0 text-caramel-400"></i>
+          Sales
+        </a>
+        {% endif %}
+        {% if 'catalog.view' in perms %}
+        <a href="{% url 'kahawa:manage_products' %}" class="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-300 transition hover:bg-white/5 hover:text-white {% if page == 'products' %}bg-white/5 text-white{% endif %}">
+          <i data-lucide="coffee" class="h-4 w-4 shrink-0 text-caramel-400"></i>
+          Products
+        </a>
+        {% endif %}
+        {% if 'catalog.edit' in perms %}
+        <a href="{% url 'kahawa:manage_packages' %}" class="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-300 transition hover:bg-white/5 hover:text-white {% if page == 'packages' %}bg-white/5 text-white{% endif %}">
+          <i data-lucide="badge-percent" class="h-4 w-4 shrink-0 text-caramel-400"></i>
+          Packages
+        </a>
+        {% endif %}
+        {% if 'categories.manage' in perms %}
+          <a href="{% url 'kahawa:manage_categories' %}" class="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-300 transition hover:bg-white/5 hover:text-white {% if page == 'categories' %}bg-white/5 text-white{% endif %}">
+            <i data-lucide="tags" class="h-4 w-4 shrink-0 text-caramel-400"></i>
+            Categories
+          </a>
+        {% endif %}
+        {% if 'tables.manage' in perms %}
+          <a href="{% url 'kahawa:manage_tables' %}" class="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-300 transition hover:bg-white/5 hover:text-white {% if page == 'tables' %}bg-white/5 text-white{% endif %}">
+            <i data-lucide="utensils" class="h-4 w-4 shrink-0 text-caramel-400"></i>
+            Tables
+          </a>
+        {% endif %}
+        {% if 'gifts.manage' in perms %}
+          <a href="{% url 'kahawa:manage_gift_cards' %}" class="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-300 transition hover:bg-white/5 hover:text-white {% if page == 'gifts' %}bg-white/5 text-white{% endif %}">
+            <i data-lucide="gift" class="h-4 w-4 shrink-0 text-caramel-400"></i>
+            Gift cards
+          </a>
+        {% endif %}
+        {% if 'team.manage' in perms %}
+          <a href="{% url 'kahawa:manage_team' %}" class="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-300 transition hover:bg-white/5 hover:text-white {% if page == 'team' %}bg-white/5 text-white{% endif %}">
+            <i data-lucide="users" class="h-4 w-4 shrink-0 text-caramel-400"></i>
+            Team
+          </a>
+        {% endif %}
+        <a href="{% url 'kahawa:home' %}" class="mt-2 flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 font-bold text-slate-400 transition hover:bg-white/5 hover:text-white">
+          <i data-lucide="store" class="h-4 w-4 shrink-0"></i>
+          Storefront
+        </a>
+      </nav>
+      <div class="shrink-0 border-t border-white/5 p-3">
+        <div class="flex items-center justify-between gap-2 px-3">
+          <p class="min-w-0 truncate text-xs font-bold text-slate-300">{{ staff_label }}</p>
+          <span class="inline-flex max-w-[6.5rem] shrink-0 items-center justify-center truncate rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide leading-none
+            {% if is_admin %}bg-caramel-600/20 text-caramel-400{% else %}bg-sky-500/15 text-sky-300{% endif %}" title="{{ staff_role_label }}">
+            {{ staff_role_label }}
+          </span>
+        </div>
+        <form method="post" action="{% url 'kahawa:staff_logout' %}" class="mt-2">
+          {% csrf_token %}
+          <button type="submit" class="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-slate-400 transition hover:bg-white/5 hover:text-white">
+            <i data-lucide="log-out" class="h-4 w-4 shrink-0"></i>
+            Logout
+          </button>
+        </form>
+      </div>
+    </aside>
+
+    <main
+      class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 py-4 sm:px-5 sm:py-5 lg:px-6 {% block main_class %}{% endblock %}"
+      style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));"
+    >
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  {# Overlays must sit outside the z-10 content row so they never paint under the nav #}
+  <div id="manage-overlays" class="relative z-[100]">
+    {% block manage_overlays %}{% endblock %}
+  </div>
+
+  {% include "partials/toasts.html" with toast_theme="dark" toast_offset="3.75rem" %}
+
+  <script>
+    lucide.createIcons();
+    (function () {
+      const sidebar = document.getElementById('manage-sidebar');
+      const toggle = document.getElementById('sidebar-toggle');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      const iconMenu = toggle?.querySelector('.js-nav-icon-menu');
+      const iconClose = toggle?.querySelector('.js-nav-icon-close');
+      const mqDesktop = window.matchMedia('(min-width: 1024px)');
+
+      function isDesktop() {
+        return mqDesktop.matches;
+      }
+
+      function setOpen(open) {
+        if (!sidebar || isDesktop()) {
+          document.body.classList.remove('manage-nav-open');
+          backdrop?.classList.add('hidden');
+          return;
+        }
+        sidebar.classList.toggle('is-open', open);
+        sidebar.classList.toggle('-translate-x-full', !open);
+        backdrop?.classList.toggle('hidden', !open);
+        toggle?.setAttribute('aria-expanded', String(open));
+        toggle?.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+        document.body.classList.toggle('manage-nav-open', open);
+        iconMenu?.classList.toggle('hidden', open);
+        iconClose?.classList.toggle('hidden', !open);
+      }
+
+      toggle?.addEventListener('click', () => {
+        setOpen(!sidebar.classList.contains('is-open'));
+      });
+      backdrop?.addEventListener('click', () => setOpen(false));
+
+      sidebar?.querySelectorAll('a').forEach((link) => {
+        link.addEventListener('click', () => setOpen(false));
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidebar?.classList.contains('is-open') && !isDesktop()) {
+          setOpen(false);
+        }
+      });
+
+      function onBreakpointChange() {
+        if (isDesktop()) {
+          sidebar?.classList.remove('is-open', '-translate-x-full');
+          sidebar?.classList.add('lg:translate-x-0');
+          backdrop?.classList.add('hidden');
+          document.body.classList.remove('manage-nav-open');
+          toggle?.setAttribute('aria-expanded', 'false');
+          toggle?.setAttribute('aria-label', 'Open menu');
+          iconMenu?.classList.remove('hidden');
+          iconClose?.classList.add('hidden');
+        } else if (!sidebar?.classList.contains('is-open')) {
+          sidebar?.classList.add('-translate-x-full');
+        }
+      }
+      if (mqDesktop.addEventListener) mqDesktop.addEventListener('change', onBreakpointChange);
+      else mqDesktop.addListener(onBreakpointChange);
+    })();
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

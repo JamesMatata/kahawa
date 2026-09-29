@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Orders{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+  <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">Orders</h1>
+      <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+        {% if is_authenticated %}
+          Orders on your Kahawa account.
+        {% else %}
+          Orders placed on this device.
+        {% endif %}
+      </p>
+    </div>
+    <a href="{% url 'kahawa:track_order' %}" class="inline-flex items-center gap-2 rounded-full border border-espresso-800/15 bg-cream-50 px-5 py-2.5 text-sm font-extrabold text-espresso-800 transition hover:bg-cream-100">
+      <i data-lucide="search" class="h-4 w-4"></i>
+      Track order
+    </a>
+  </div>
+
+  {% if not is_authenticated %}
+    <p class="mb-6 rounded-2xl bg-cream-100 px-4 py-3 text-sm font-semibold text-espresso-800 ring-1 ring-caramel-400/15">
+      Sign in to keep your order history across devices.
+      <a href="{% url 'kahawa:login' %}?next={% url 'kahawa:orders' %}" class="font-extrabold text-caramel-700 hover:text-caramel-600">Sign in</a>
+      ·
+      <a href="{% url 'kahawa:register' %}" class="font-extrabold text-caramel-700 hover:text-caramel-600">Create account</a>
+    </p>
+  {% endif %}
+
+  {% if is_authenticated %}
+    {% if account_orders %}
+      <ul class="space-y-3">
+        {% for order in account_orders %}
+          <li>
+            <a href="{% url 'kahawa:order_detail' order.order_code %}" class="block rounded-2xl bg-cream-50 p-4 ring-1 ring-caramel-400/15 transition hover:bg-cream-100/80 sm:p-5">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="font-display text-lg font-semibold text-espresso-900">{{ order.order_code }}</p>
+                  <p class="mt-0.5 text-sm font-semibold text-espresso-700/55">{{ order.created_at|date:"D, M j · g:i A" }}</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span class="rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide
+                    {% if order.status == 'COMPLETED' %}bg-emerald-100 text-emerald-800
+                    {% elif order.status == 'CANCELLED' %}bg-red-100 text-red-800
+                    {% elif order.status == 'READY' %}bg-sky-100 text-sky-900
+                    {% elif order.status == 'PREPARING' %}bg-amber-100 text-amber-900
+                    {% else %}bg-latte/80 text-espresso-800{% endif %}">
+                    {{ order.get_status_display }}
+                  </span>
+                  <span class="rounded-full bg-espresso-800/5 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-espresso-800">
+                    {{ order.get_order_type_display }}
+                  </span>
+                </div>
+              </div>
+              <p class="mt-3 text-sm font-extrabold text-espresso-900">
+                KSh {{ order.total_amount|floatformat:0 }}
+                <span class="font-semibold text-espresso-700/45">· {{ order.items.count }} item{{ order.items.count|pluralize }}</span>
+              </p>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="rounded-2xl border border-dashed border-caramel-400/40 bg-cream-100/40 px-6 py-14 text-center">
+        <p class="font-display text-xl text-espresso-800">No orders yet</p>
+        <a href="{% url 'kahawa:menu' %}" class="mt-5 inline-flex rounded-full bg-caramel-600 px-5 py-2.5 text-sm font-extrabold text-cream-50 hover:bg-caramel-700">Browse menu</a>
+      </div>
+    {% endif %}
+  {% else %}
+    {% csrf_token %}
+    <div id="device-orders-loading" class="py-8 text-center text-sm font-semibold text-espresso-700/55">Loading…</div>
+    <ul id="device-orders-list" class="hidden space-y-3"></ul>
+    <div id="device-orders-empty" class="hidden rounded-2xl border border-dashed border-caramel-400/40 bg-cream-100/40 px-6 py-14 text-center">
+      <p class="font-display text-xl text-espresso-800">No orders on this device</p>
+      <a href="{% url 'kahawa:menu' %}" class="mt-5 inline-flex rounded-full bg-caramel-600 px-5 py-2.5 text-sm font-extrabold text-cream-50 hover:bg-caramel-700">Browse menu</a>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+{% if not is_authenticated %}
+<script>
+  (function () {
+    const list = document.getElementById('device-orders-list');
+    const empty = document.getElementById('device-orders-empty');
+    const loading = document.getElementById('device-orders-loading');
+    if (!list || !window.KahawaCart) return;
+
+    const codes = window.KahawaCart.getRecentOrders();
+    const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+    const csrf = csrfEl ? csrfEl.value : '';
+
+    function statusClass(status) {
+      if (status === 'COMPLETED') return 'bg-emerald-100 text-emerald-800';
+      if (status === 'CANCELLED') return 'bg-red-100 text-red-800';
+      if (status === 'READY') return 'bg-sky-100 text-sky-900';
+      if (status === 'PREPARING') return 'bg-amber-100 text-amber-900';
+      return 'bg-latte/80 text-espresso-800';
+    }
+
+    async function load() {
+      if (!codes.length) {
+        loading.classList.add('hidden');
+        empty.classList.remove('hidden');
+        return;
+      }
+      try {
+        const res = await fetch('{% url "kahawa:orders_by_codes" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-CSRFToken': csrf,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify({ codes }),
+        });
+        const data = await res.json();
+        loading.classList.add('hidden');
+        const orders = data.orders || [];
+        if (!orders.length) {
+          empty.classList.remove('hidden');
+          return;
+        }
+        list.classList.remove('hidden');
+        list.innerHTML = orders.map((o) => `
+          <li>
+            <a href="${o.url}" class="block rounded-2xl bg-cream-50 p-4 ring-1 ring-caramel-400/15 transition hover:bg-cream-100/80 sm:p-5">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="font-display text-lg font-semibold text-espresso-900">${o.code}</p>
+                  <p class="mt-0.5 text-sm font-semibold text-espresso-700/55">${o.created_at}</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span class="rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide ${statusClass(o.status)}">${o.status_label}</span>
+                  <span class="rounded-full bg-espresso-800/5 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-espresso-800">${o.order_type_label}</span>
+                </div>
+              </div>
+              <p class="mt-3 text-sm font-extrabold text-espresso-900">
+                KSh ${Number(o.total).toLocaleString('en-KE')}
+                <span class="font-semibold text-espresso-700/45">· ${o.item_count} item${o.item_count === 1 ? '' : 's'}</span>
+              </p>
+            </a>
+          </li>
+        `).join('');
+      } catch (_) {
+        loading.textContent = 'Could not load orders.';
+      }
+    }
+
+    load();
+  })();
+</script>
+{% endif %}
+{% endblock %}

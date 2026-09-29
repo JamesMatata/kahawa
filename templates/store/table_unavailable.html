@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Table unavailable{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-lg px-4 py-16 sm:px-6">
+  <div class="rounded-3xl bg-cream-50 p-8 text-center ring-1 ring-caramel-400/15 sm:p-10">
+    <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
+      <i data-lucide="utensils" class="h-7 w-7"></i>
+    </span>
+    <h1 class="mt-5 font-display text-2xl font-semibold text-espresso-900 sm:text-3xl">
+      {% if inactive %}This table is offline{% else %}Table not found{% endif %}
+    </h1>
+    <p class="mt-3 text-sm font-semibold leading-relaxed text-espresso-700/70">
+      {% if inactive %}
+        Table <span class="font-extrabold text-espresso-900">{{ code }}</span> isn’t taking QR orders right now. Ask a barista for help, or order pickup from the menu.
+      {% else %}
+        We couldn’t match that QR code. Ask staff for the current table link, or browse the menu for pickup.
+      {% endif %}
+    </p>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <a href="{% url 'kahawa:menu' %}" class="inline-flex items-center gap-2 rounded-full bg-caramel-600 px-6 py-3 text-sm font-extrabold text-cream-50 hover:bg-caramel-700">
+        Browse menu
+      </a>
+      <a href="{% url 'kahawa:home' %}" class="inline-flex items-center gap-2 rounded-full border border-espresso-800/15 px-6 py-3 text-sm font-extrabold text-espresso-800 hover:bg-cream-100">
+        Home
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

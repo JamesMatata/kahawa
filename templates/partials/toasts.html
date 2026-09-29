@@ -1,0 +1,21 @@
+{% load static %}
+{# Fixed toasts under nav. Include once per layout. #}
+{# Optional: toast_theme=light|dark  toast_offset=4.5rem #}
+<link rel="stylesheet" href="{% static 'css/toasts.css' %}">
+<div
+  id="kahawa-toasts"
+  data-theme="{{ toast_theme|default:'light' }}"
+  style="--toast-offset: {{ toast_offset|default:'4.5rem' }};"
+  aria-live="polite"
+  aria-relevant="additions"
+></div>
+{% if messages %}
+<script type="application/json" id="django-toast-messages">
+[
+{% for message in messages %}
+  {"level": "{{ message.level_tag|default:'info'|escapejs }}", "text": "{{ message|escapejs }}"}{% if not forloop.last %},{% endif %}
+{% endfor %}
+]
+</script>
+{% endif %}
+<script src="{% static 'js/toasts.js' %}"></script>

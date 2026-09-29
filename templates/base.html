@@ -1,0 +1,216 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Kahawa{% endblock %} · Fresh cups, Nairobi vibes</title>
+  <link rel="stylesheet" href="{% static 'css/kahawa.css' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="{% static 'css/scrollbar.css' %}">
+  <link rel="stylesheet" href="{% static 'css/controls.css' %}">
+  <style>
+    body {
+      font-family: Inter, system-ui, sans-serif;
+      background-color: #FFFBF5;
+      min-height: 100vh;
+    }
+    .font-display { font-family: 'Fredoka', system-ui, sans-serif; }
+    .product-card-title {
+      font-family: 'Fredoka', system-ui, sans-serif;
+      font-style: normal;
+      font-weight: 600;
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="text-espresso-800 antialiased flex flex-col min-h-screen">
+  <div id="offline-banner" class="hidden border-b border-amber-500/30 bg-amber-50 px-4 py-2 text-center text-xs font-extrabold uppercase tracking-wide text-amber-900" role="status">
+    You’re offline — some actions may not work until you’re back online.
+  </div>
+  <header class="sticky top-0 z-50 border-b border-caramel-400/20 bg-cream-50/90 backdrop-blur-md">
+    <nav class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <a href="{% url 'kahawa:home' %}" class="group shrink-0">
+        <img
+          src="{% static 'images/kahawa-logo.png' %}"
+          alt="Kahawa"
+          class="h-8 w-auto transition duration-200 group-hover:scale-105 sm:h-10 lg:h-11"
+        >
+      </a>
+
+      <div class="hidden items-center gap-1 md:flex">
+        <a href="{% url 'kahawa:home' %}" class="rounded-full px-4 py-2 text-sm font-bold text-espresso-700 transition hover:bg-latte/60 hover:text-espresso-900">Home</a>
+        <a href="{% url 'kahawa:menu' %}" class="rounded-full px-4 py-2 text-sm font-bold text-espresso-700 transition hover:bg-latte/60 hover:text-espresso-900">Menu</a>
+        <a href="{% url 'kahawa:orders' %}" class="rounded-full px-4 py-2 text-sm font-bold text-espresso-700 transition hover:bg-latte/60 hover:text-espresso-900">Orders</a>
+        <a href="{% url 'kahawa:gift_card_buy' %}" class="rounded-full px-4 py-2 text-sm font-bold text-espresso-700 transition hover:bg-latte/60 hover:text-espresso-900">Gift cards</a>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <a href="{% url 'kahawa:cart' %}" id="cart-trigger" class="relative inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-espresso-800 text-cream-50 transition hover:bg-espresso-900" aria-label="Open cart">
+          <i data-lucide="shopping-bag" class="h-5 w-5"></i>
+          <span id="cart-count-badge" class="hidden absolute -right-1.5 -top-1.5 h-5 min-w-5 items-center justify-center rounded-full bg-caramel-500 px-1 text-[11px] font-extrabold text-espresso-900 ring-2 ring-cream-50">
+            0
+          </span>
+        </a>
+
+        {% if user.is_authenticated %}
+          <div class="hidden items-center gap-2 sm:flex">
+            <a href="{% url 'kahawa:profile' %}" class="rounded-full px-3 py-2 text-sm font-bold text-espresso-700 transition hover:bg-latte/60 hover:text-espresso-900">
+              Account
+            </a>
+            {% if user.is_staff %}
+              <a href="{% url 'kahawa:manage_entry' %}" class="inline-flex items-center gap-1.5 rounded-full bg-latte px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-espresso-800 transition hover:bg-caramel-400/40">
+                <i data-lucide="layout-dashboard" class="h-3.5 w-3.5"></i>
+                Manage
+              </a>
+            {% endif %}
+            <form method="post" action="{% url 'kahawa:logout' %}" class="inline">
+              {% csrf_token %}
+              <button type="submit" class="rounded-full border border-espresso-800/15 px-3 py-2 text-sm font-bold text-espresso-800 transition hover:border-espresso-800/30 hover:bg-cream-200/50">
+                Logout
+              </button>
+            </form>
+          </div>
+        {% else %}
+          <div class="hidden items-center gap-2 sm:flex">
+            <a href="{% url 'kahawa:login' %}" class="rounded-full bg-caramel-600 px-4 py-2 text-sm font-extrabold text-cream-50 transition hover:bg-caramel-700">
+              Sign in
+            </a>
+          </div>
+        {% endif %}
+
+        <button type="button" id="mobile-menu-btn" class="inline-flex items-center justify-center text-espresso-800 md:hidden" aria-label="Toggle menu" aria-expanded="false">
+          <i data-lucide="menu" class="h-6 w-6" data-icon-open></i>
+          <i data-lucide="x" class="hidden h-6 w-6" data-icon-close></i>
+        </button>
+      </div>
+    </nav>
+
+    <div id="mobile-menu" class="hidden border-t border-caramel-400/20 bg-cream-50 px-4 py-3 md:hidden">
+      <div class="flex flex-col gap-1">
+        <a href="{% url 'kahawa:home' %}" class="rounded-2xl px-4 py-3 text-sm font-bold text-espresso-800 hover:bg-latte/50">Home</a>
+        <a href="{% url 'kahawa:menu' %}" class="rounded-2xl px-4 py-3 text-sm font-bold text-espresso-800 hover:bg-latte/50">Menu</a>
+        <a href="{% url 'kahawa:orders' %}" class="rounded-2xl px-4 py-3 text-sm font-bold text-espresso-800 hover:bg-latte/50">Orders</a>
+        <a href="{% url 'kahawa:gift_card_buy' %}" class="rounded-2xl px-4 py-3 text-sm font-bold text-espresso-800 hover:bg-latte/50">Gift cards</a>
+        <div class="my-2 h-px bg-caramel-400/20"></div>
+        {% if user.is_authenticated %}
+          <a href="{% url 'kahawa:profile' %}" class="rounded-2xl px-4 py-3 text-sm font-bold text-espresso-800 hover:bg-latte/50">Account</a>
+          {% if user.is_staff %}
+            <a href="{% url 'kahawa:manage_entry' %}" class="rounded-2xl px-4 py-3 text-sm font-bold text-espresso-800 hover:bg-latte/50">Manage</a>
+          {% endif %}
+          <form method="post" action="{% url 'kahawa:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="w-full rounded-2xl px-4 py-3 text-left text-sm font-bold text-espresso-800 hover:bg-latte/50">Logout</button>
+          </form>
+        {% else %}
+          <a href="{% url 'kahawa:login' %}" class="rounded-2xl bg-caramel-600 px-4 py-3 text-center text-sm font-extrabold text-cream-50 hover:bg-caramel-700">Sign in</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  {% include "partials/toasts.html" with toast_theme="light" toast_offset="4.75rem" %}
+
+  <main class="flex-1">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="mt-auto border-t border-caramel-400/20 bg-espresso-900 text-cream-100">
+    <div class="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-center sm:grid-cols-2 sm:px-6 sm:py-12 sm:text-left lg:grid-cols-3 lg:gap-10">
+      <div class="flex flex-col items-center sm:col-span-2 sm:items-start lg:col-span-1">
+        <img
+          src="{% static 'images/kahawa-logo.png' %}"
+          alt="Kahawa"
+          class="h-8 w-auto brightness-0 invert opacity-95 sm:h-9"
+        >
+        <p class="mt-3 max-w-xs text-sm leading-relaxed text-cream-200/75">
+          Brewed for Nairobi — latte art, late nights, and a cup that keeps pace with you.
+        </p>
+      </div>
+
+      <div>
+        <h3 class="mb-3 font-display text-base font-semibold text-cream-50">Visit</h3>
+        <ul class="space-y-2 text-sm text-cream-200/75">
+          <li>{{ cafe.address }}</li>
+          <li>{{ cafe.hours_weekday }}</li>
+          <li>{{ cafe.hours_weekend }}</li>
+          <li>
+            <a href="tel:{{ cafe.phone_tel }}" class="transition hover:text-caramel-400">{{ cafe.phone }}</a>
+          </li>
+          <li class="flex flex-wrap items-center justify-center gap-3 pt-1 sm:justify-start">
+            <a
+              href="https://wa.me/{{ cafe.whatsapp }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 transition hover:text-caramel-400"
+            >
+              <i data-lucide="message-circle" class="h-3.5 w-3.5"></i>
+              WhatsApp
+            </a>
+            <a
+              href="{{ cafe.maps_url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 transition hover:text-caramel-400"
+            >
+              <i data-lucide="map-pin" class="h-3.5 w-3.5"></i>
+              Maps
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <h3 class="mb-3 font-display text-base font-semibold text-cream-50">Quick links</h3>
+        <ul class="space-y-2 text-sm">
+          <li><a href="{% url 'kahawa:menu' %}" class="text-cream-200/75 transition hover:text-caramel-400">Menu</a></li>
+          <li><a href="{% url 'kahawa:orders' %}" class="text-cream-200/75 transition hover:text-caramel-400">Orders</a></li>
+          <li><a href="{% url 'kahawa:gift_card_buy' %}" class="text-cream-200/75 transition hover:text-caramel-400">Gift cards</a></li>
+          <li><a href="{% url 'kahawa:track_order' %}" class="text-cream-200/75 transition hover:text-caramel-400">Track order</a></li>
+          <li><a href="{% url 'kahawa:privacy' %}" class="text-cream-200/75 transition hover:text-caramel-400">Privacy</a></li>
+          <li><a href="{% url 'kahawa:terms' %}" class="text-cream-200/75 transition hover:text-caramel-400">Terms</a></li>
+          <li><a href="{% url 'kahawa:allergens' %}" class="text-cream-200/75 transition hover:text-caramel-400">Allergens</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="border-t border-cream-50/10 px-4 py-4 text-center text-xs text-cream-200/45 sm:px-6">
+      &copy; {% now "Y" %} Kahawa
+    </div>
+  </footer>
+
+  <script src="{% static 'js/kahawa-cart.js' %}"></script>
+  <script>
+    lucide.createIcons();
+
+    const mobileBtn = document.getElementById('mobile-menu-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+    if (mobileBtn && mobileMenu) {
+      mobileBtn.addEventListener('click', () => {
+        const open = mobileMenu.classList.toggle('hidden') === false;
+        mobileBtn.setAttribute('aria-expanded', String(open));
+        const iconOpen = mobileBtn.querySelector('[data-icon-open]');
+        const iconClose = mobileBtn.querySelector('[data-icon-close]');
+        if (iconOpen && iconClose) {
+          iconOpen.classList.toggle('hidden', open);
+          iconClose.classList.toggle('hidden', !open);
+        }
+      });
+    }
+
+    (function () {
+      const banner = document.getElementById('offline-banner');
+      if (!banner) return;
+      function syncOnline() {
+        banner.classList.toggle('hidden', navigator.onLine);
+      }
+      window.addEventListener('online', syncOnline);
+      window.addEventListener('offline', syncOnline);
+      syncOnline();
+    })();
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

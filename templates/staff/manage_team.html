@@ -1,0 +1,548 @@
+{% extends "staff/base_manage.html" %}
+
+{% block title %}Team{% endblock %}
+
+{% block extra_head %}
+<style>
+  .team-check {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 0.3rem;
+    border: 1.5px solid rgba(255, 255, 255, 0.22);
+    background: #0B1220;
+    flex-shrink: 0;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  .team-check:hover { border-color: #E8914A; }
+  .team-check:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.35);
+    border-color: #D97706;
+  }
+  .team-check:checked {
+    background: #D97706;
+    border-color: #D97706;
+  }
+  .team-check:checked::after {
+    content: '';
+    position: absolute;
+    left: 0.32rem;
+    top: 0.1rem;
+    width: 0.28rem;
+    height: 0.5rem;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .team-check:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .team-drawer { pointer-events: none; }
+  .team-drawer.is-open { pointer-events: auto; }
+  .team-drawer-backdrop {
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .team-drawer.is-open .team-drawer-backdrop { opacity: 1; }
+  .team-drawer-panel {
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .team-drawer.is-open .team-drawer-panel { transform: translateY(0); }
+  @media (min-width: 768px) {
+    .team-drawer-panel { transform: translateX(100%); }
+    .team-drawer.is-open .team-drawer-panel { transform: translateX(0); }
+  }
+  .team-role-chip {
+    position: relative;
+  }
+  .team-role-chip > input[type="checkbox"] {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    margin: 0;
+    cursor: pointer;
+    opacity: 0;
+  }
+  .team-modal-panel {
+    max-height: min(90dvh, 36rem);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+  <div class="min-w-0">
+    <h1 class="font-display text-2xl font-semibold text-white sm:text-3xl">Team</h1>
+    <p class="mt-1 text-sm font-semibold text-slate-400">Roles, permissions, and activity</p>
+  </div>
+  <button
+    type="button"
+    id="open-add-member"
+    class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-caramel-500 sm:w-auto"
+  >
+    <i data-lucide="user-plus" class="h-4 w-4"></i>
+    Add member
+  </button>
+</div>
+
+{% if error %}
+  <p class="mb-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300 ring-1 ring-red-500/20" role="alert">{{ error }}</p>
+{% endif %}
+
+<div class="manage-board overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/5">
+  <div class="manage-cols-team hidden border-b border-white/5 px-5 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500 lg:grid">
+    <span>Member</span>
+    <span class="text-center">Status</span>
+    <span class="text-right">Actions</span>
+  </div>
+  <ul class="divide-y divide-white/5">
+    {% for member in team %}
+      <li class="manage-cols-team px-3 py-3.5 transition hover:bg-white/[0.02] sm:px-4 lg:grid lg:px-5">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="truncate text-sm font-extrabold text-white">{{ member.label }}</p>
+            {% for role in member.roles.all %}
+              <span class="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide leading-none
+                {% if role.slug == 'admin' %}bg-caramel-600/20 text-caramel-400{% else %}bg-sky-500/15 text-sky-300{% endif %}">
+                {{ role.name }}
+              </span>
+            {% empty %}
+              <span class="inline-flex items-center justify-center rounded-full bg-slate-500/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide leading-none text-slate-400">Staff</span>
+            {% endfor %}
+            <span class="inline-flex h-6 min-w-[4.5rem] items-center justify-center rounded-full px-2.5 text-[10px] font-extrabold uppercase tracking-wide leading-none lg:hidden
+              {% if member.is_active %}bg-emerald-500/15 text-emerald-300{% else %}bg-slate-500/20 text-slate-400{% endif %}">
+              {% if member.is_active %}Active{% else %}Inactive{% endif %}
+            </span>
+          </div>
+          <p class="mt-1 truncate text-xs font-semibold text-slate-500">
+            @{{ member.user.username }} · joined {{ member.created_at|date:"M j, Y" }}
+          </p>
+        </div>
+        <div class="mt-3 flex items-center gap-2 lg:mt-0 lg:contents">
+          <div class="hidden justify-center lg:flex">
+            <span class="inline-flex h-6 min-w-[4.5rem] items-center justify-center rounded-full px-2.5 text-[10px] font-extrabold uppercase tracking-wide leading-none
+              {% if member.is_active %}bg-emerald-500/15 text-emerald-300{% else %}bg-slate-500/20 text-slate-400{% endif %}">
+              {% if member.is_active %}Active{% else %}Inactive{% endif %}
+            </span>
+          </div>
+          <div class="flex min-w-0 flex-1 items-center gap-2 lg:flex-none lg:justify-end">
+            <a
+              href="{% url 'kahawa:manage_team_activity' member.id %}"
+              class="inline-flex min-h-10 flex-1 items-center justify-center rounded-full border border-white/10 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-300 transition hover:bg-white/5 lg:min-h-0 lg:h-8 lg:flex-none lg:py-0"
+            >
+              Activity
+            </a>
+            <button
+              type="button"
+              class="js-edit-member inline-flex min-h-10 flex-1 items-center justify-center rounded-full bg-white/5 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-caramel-400 transition hover:bg-white/10 lg:min-h-0 lg:h-8 lg:flex-none lg:py-0"
+              data-id="{{ member.id }}"
+            >
+              Edit
+            </button>
+          </div>
+        </div>
+      </li>
+    {% empty %}
+      <li class="px-5 py-14 text-center">
+        <p class="font-display text-lg text-slate-300">No team members yet</p>
+        <p class="mt-1 text-sm font-semibold text-slate-500">Add your first staff account to get started.</p>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<template id="perm-checklist-template">
+  <div class="space-y-4 rounded-xl bg-ink-950/80 p-3 ring-1 ring-white/5">
+    {% for group, items in permission_groups %}
+      <div>
+        <p class="mb-2 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">{{ group }}</p>
+        <div class="space-y-1">
+          {% for item in items %}
+            <label class="flex min-h-10 cursor-pointer items-center gap-2.5 text-sm font-semibold text-slate-300">
+              <input type="checkbox" name="permissions" value="{{ item.code }}" class="team-check js-perm">
+              <span>{{ item.label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</template>
+{% endblock %}
+
+{% block manage_overlays %}
+{# Add member — bottom sheet (mobile) / right drawer below nav (desktop) #}
+<div id="drawer-add" class="team-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="drawer-add-title">
+  <div class="team-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-drawer></div>
+  <aside class="team-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,26rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="drawer-add-title" class="font-display text-xl font-semibold text-white">Add team member</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-drawer aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <form method="post" class="flex min-h-0 flex-1 flex-col" id="add-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create">
+      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Username</span>
+          <input type="text" name="username" required autocomplete="off" autocapitalize="none" class="w-full rounded-xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Display name</span>
+          <input type="text" name="display_name" placeholder="Optional" class="w-full rounded-xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Password</span>
+          <input type="password" name="password" required autocomplete="new-password" class="w-full rounded-xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <div>
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Roles</span>
+          <p class="mb-2 text-xs font-semibold text-slate-500">Select one or more. Permissions update from the union — uncheck to restrict.</p>
+          <div class="flex flex-wrap gap-2" id="add-roles">
+            {% for role in staff_roles %}
+              <label class="team-role-chip inline-flex cursor-pointer items-center rounded-full bg-ink-950 px-3 py-2 text-xs font-extrabold text-slate-300 ring-1 ring-white/10 has-[:checked]:bg-caramel-600/20 has-[:checked]:text-caramel-300 has-[:checked]:ring-caramel-500/40">
+                <input type="checkbox" name="roles" value="{{ role.slug }}" class="js-role" data-form="add"{% if role.slug == 'barista' %} checked{% endif %}>
+                <span class="relative z-[1]">{{ role.name }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Permissions</span>
+          <div id="add-perms"></div>
+        </div>
+      </div>
+      <div class="flex shrink-0 gap-2 border-t border-white/5 bg-ink-850 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-close-drawer class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Cancel</button>
+        <button type="submit" class="min-h-11 flex-1 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">Create</button>
+      </div>
+    </form>
+  </aside>
+</div>
+
+{# Edit member drawer #}
+<div id="drawer-edit" class="team-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="drawer-edit-title">
+  <div class="team-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-drawer></div>
+  <aside class="team-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,26rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="drawer-edit-title" class="font-display text-xl font-semibold text-white">Edit member</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-drawer aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <form method="post" class="flex min-h-0 flex-1 flex-col" id="edit-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="edit">
+      <input type="hidden" name="profile_id" id="edit-profile-id" value="">
+      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+        <div>
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Username</span>
+          <p id="edit-username" class="text-sm font-extrabold text-white">—</p>
+        </div>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Display name</span>
+          <input type="text" name="display_name" id="edit-display" class="w-full rounded-xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">New password <span class="normal-case tracking-normal text-slate-600">(leave blank to keep)</span></span>
+          <input type="password" name="password" id="edit-password" autocomplete="new-password" class="w-full rounded-xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <div>
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Roles</span>
+          <div class="flex flex-wrap gap-2" id="edit-roles">
+            {% for role in staff_roles %}
+              <label class="team-role-chip inline-flex cursor-pointer items-center rounded-full bg-ink-950 px-3 py-2 text-xs font-extrabold text-slate-300 ring-1 ring-white/10 has-[:checked]:bg-caramel-600/20 has-[:checked]:text-caramel-300 has-[:checked]:ring-caramel-500/40">
+                <input type="checkbox" name="roles" value="{{ role.slug }}" class="js-role" data-form="edit">
+                <span class="relative z-[1]">{{ role.name }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Permissions</span>
+          <div id="edit-perms"></div>
+        </div>
+        <label class="flex min-h-10 cursor-pointer items-center gap-2.5 text-sm font-bold text-slate-300" id="edit-active-wrap">
+          <input type="checkbox" name="is_active" id="edit-active" class="team-check">
+          Account active
+        </label>
+        <input type="hidden" name="is_active" id="edit-active-hidden" value="on" disabled>
+      </div>
+      <div class="flex shrink-0 gap-2 border-t border-white/5 bg-ink-850 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-close-drawer class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Cancel</button>
+        <button type="submit" class="min-h-11 flex-1 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">Save</button>
+      </div>
+    </form>
+  </aside>
+</div>
+
+{# Discard changes confirmation #}
+<div id="discard-confirm" class="fixed inset-0 z-[120] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="discard-title">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-discard-stay></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="team-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 pt-5 sm:px-5">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-300">
+          <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+        </div>
+        <h2 id="discard-title" class="mt-3 font-display text-xl font-semibold text-white">Discard changes?</h2>
+        <p class="mt-2 text-sm font-semibold leading-relaxed text-slate-400">
+          The details you entered will be lost if you leave now. This can’t be undone.
+        </p>
+      </div>
+      <div class="mt-5 flex gap-2 border-t border-white/5 px-4 py-4 sm:px-5" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-discard-stay class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">
+          Keep editing
+        </button>
+        <button type="button" id="discard-confirm-btn" class="min-h-11 flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-extrabold text-white hover:bg-rose-500">
+          Discard
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const ROLE_PRESETS = {{ role_presets_json|safe }};
+    const TEAM = {{ team_payload_json|safe }};
+    const byId = Object.fromEntries(TEAM.map((m) => [String(m.id), m]));
+
+    const addDrawer = document.getElementById('drawer-add');
+    const editDrawer = document.getElementById('drawer-edit');
+    const discardModal = document.getElementById('discard-confirm');
+    const tmpl = document.getElementById('perm-checklist-template');
+    let formSnapshots = { add: '', edit: '' };
+    let pendingClose = null;
+
+    function mountPerms(host) {
+      host.innerHTML = '';
+      host.appendChild(tmpl.content.cloneNode(true));
+    }
+
+    function selectedRoles(root) {
+      return Array.from(root.querySelectorAll('.js-role:checked')).map((el) => el.value);
+    }
+
+    function unionFromRoles(slugs) {
+      const set = new Set();
+      slugs.forEach((slug) => {
+        (ROLE_PRESETS[slug] || []).forEach((c) => set.add(c));
+      });
+      return set;
+    }
+
+    function applyPermChecks(host, codes) {
+      const set = new Set(codes || []);
+      host.querySelectorAll('.js-perm').forEach((cb) => {
+        cb.checked = set.has(cb.value);
+      });
+    }
+
+    function syncPermsFromRoles(formKey) {
+      const form = document.getElementById(formKey === 'add' ? 'add-form' : 'edit-form');
+      const host = document.getElementById(formKey === 'add' ? 'add-perms' : 'edit-perms');
+      if (!form || !host) return;
+      if (form.dataset.manualPerms === '1') return;
+      applyPermChecks(host, unionFromRoles(selectedRoles(form)));
+    }
+
+    function wirePermManual(formKey) {
+      const host = document.getElementById(formKey === 'add' ? 'add-perms' : 'edit-perms');
+      const form = document.getElementById(formKey === 'add' ? 'add-form' : 'edit-form');
+      host.querySelectorAll('.js-perm').forEach((cb) => {
+        cb.addEventListener('change', () => {
+          form.dataset.manualPerms = '1';
+        });
+      });
+    }
+
+    function serializeForm(form) {
+      if (!form) return '';
+      const data = new FormData(form);
+      const parts = [];
+      for (const [key, value] of data.entries()) {
+        if (key === 'csrfmiddlewaretoken') continue;
+        parts.push(key + '=' + String(value));
+      }
+      return parts.sort().join('&');
+    }
+
+    function captureSnapshot(formKey) {
+      const form = document.getElementById(formKey === 'add' ? 'add-form' : 'edit-form');
+      formSnapshots[formKey] = serializeForm(form);
+    }
+
+    function isDirty(formKey) {
+      const form = document.getElementById(formKey === 'add' ? 'add-form' : 'edit-form');
+      return serializeForm(form) !== formSnapshots[formKey];
+    }
+
+    function activeDirtyKey() {
+      if (addDrawer?.classList.contains('is-open') && isDirty('add')) return 'add';
+      if (editDrawer?.classList.contains('is-open') && isDirty('edit')) return 'edit';
+      return null;
+    }
+
+    function openDiscardModal(onConfirm) {
+      pendingClose = onConfirm;
+      discardModal.classList.remove('hidden');
+      discardModal.setAttribute('aria-hidden', 'false');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeDiscardModal() {
+      pendingClose = null;
+      discardModal.classList.add('hidden');
+      discardModal.setAttribute('aria-hidden', 'true');
+    }
+
+    function openDrawer(el) {
+      if (!el) return;
+      el.classList.remove('hidden');
+      el.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      requestAnimationFrame(() => {
+        el.classList.add('is-open');
+        if (window.lucide) window.lucide.createIcons();
+      });
+    }
+
+    function closeDrawer(el) {
+      if (!el || el.classList.contains('hidden')) return;
+      el.classList.remove('is-open');
+      el.setAttribute('aria-hidden', 'true');
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        el.classList.add('hidden');
+        if (!document.querySelector('.team-drawer.is-open') && discardModal.classList.contains('hidden')) {
+          document.body.classList.remove('overflow-hidden');
+        }
+      };
+      const panel = el.querySelector('.team-drawer-panel');
+      if (panel) {
+        panel.addEventListener('transitionend', done, { once: true });
+        setTimeout(done, 320);
+      } else {
+        done();
+      }
+    }
+
+    function requestCloseAll() {
+      const dirtyKey = activeDirtyKey();
+      if (dirtyKey) {
+        openDiscardModal(() => {
+          closeDiscardModal();
+          closeDrawer(addDrawer);
+          closeDrawer(editDrawer);
+        });
+        return;
+      }
+      closeDrawer(addDrawer);
+      closeDrawer(editDrawer);
+    }
+
+    mountPerms(document.getElementById('add-perms'));
+    mountPerms(document.getElementById('edit-perms'));
+    wirePermManual('add');
+    wirePermManual('edit');
+    syncPermsFromRoles('add');
+
+    document.querySelectorAll('.js-role').forEach((el) => {
+      el.addEventListener('change', () => {
+        const form = document.getElementById(el.dataset.form === 'add' ? 'add-form' : 'edit-form');
+        form.dataset.manualPerms = '0';
+        syncPermsFromRoles(el.dataset.form);
+      });
+    });
+
+    document.getElementById('open-add-member')?.addEventListener('click', () => {
+      const form = document.getElementById('add-form');
+      form.dataset.manualPerms = '0';
+      form.reset();
+      form.querySelectorAll('.js-role').forEach((cb) => {
+        cb.checked = cb.value === 'barista';
+      });
+      syncPermsFromRoles('add');
+      captureSnapshot('add');
+      openDrawer(addDrawer);
+    });
+
+    document.querySelectorAll('[data-close-drawer]').forEach((el) => {
+      el.addEventListener('click', requestCloseAll);
+    });
+
+    document.querySelectorAll('[data-discard-stay]').forEach((el) => {
+      el.addEventListener('click', closeDiscardModal);
+    });
+    document.getElementById('discard-confirm-btn')?.addEventListener('click', () => {
+      if (typeof pendingClose === 'function') pendingClose();
+      else closeDiscardModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!discardModal.classList.contains('hidden')) {
+        closeDiscardModal();
+        return;
+      }
+      if (addDrawer?.classList.contains('is-open') || editDrawer?.classList.contains('is-open')) {
+        requestCloseAll();
+      }
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+      if (activeDirtyKey()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
+    document.querySelectorAll('.js-edit-member').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const member = byId[btn.dataset.id];
+        if (!member) return;
+        const form = document.getElementById('edit-form');
+        form.dataset.manualPerms = '1';
+        document.getElementById('edit-profile-id').value = member.id;
+        document.getElementById('edit-username').textContent = '@' + member.username;
+        document.getElementById('edit-display').value = member.display || '';
+        document.getElementById('edit-password').value = '';
+        document.getElementById('edit-active').checked = !!member.active;
+        form.querySelectorAll('.js-role').forEach((cb) => {
+          cb.checked = (member.roles || []).includes(cb.value);
+        });
+        applyPermChecks(document.getElementById('edit-perms'), member.permissions || []);
+        const isSelf = !!member.self;
+        const activeCb = document.getElementById('edit-active');
+        const activeHidden = document.getElementById('edit-active-hidden');
+        activeCb.disabled = isSelf;
+        activeHidden.disabled = !isSelf;
+        document.getElementById('edit-active-wrap').classList.toggle('opacity-50', isSelf);
+        captureSnapshot('edit');
+        openDrawer(editDrawer);
+      });
+    });
+
+    {% if error and form_mode == 'create' %}
+      captureSnapshot('add');
+      openDrawer(addDrawer);
+    {% elif error and form_mode == 'edit' %}
+      captureSnapshot('edit');
+      openDrawer(editDrawer);
+    {% endif %}
+  })();
+</script>
+{% endblock %}

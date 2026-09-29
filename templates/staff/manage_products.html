@@ -1,0 +1,622 @@
+{% extends "staff/base_manage.html" %}
+
+{% block title %}Products{% endblock %}
+
+{% block extra_head %}
+<style>
+  .manage-drawer { pointer-events: none; }
+  .manage-drawer.is-open { pointer-events: auto; }
+  .manage-drawer-backdrop { opacity: 0; transition: opacity 0.25s ease; }
+  .manage-drawer.is-open .manage-drawer-backdrop { opacity: 1; }
+  .manage-drawer-panel {
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .manage-drawer.is-open .manage-drawer-panel { transform: translateY(0); }
+  @media (min-width: 768px) {
+    .manage-drawer-panel { transform: translateX(100%); }
+    .manage-drawer.is-open .manage-drawer-panel { transform: translateX(0); }
+  }
+  .product-modal-panel {
+    max-height: min(90dvh, 36rem);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+  <div class="min-w-0">
+    <h1 class="font-display text-2xl font-semibold text-white sm:text-3xl">Products</h1>
+    <p class="mt-1 text-sm font-semibold text-slate-400">
+      {% if can_edit %}Full catalog · tap a product to view or edit{% else %}Toggle availability · ask a manager to edit details{% endif %}
+    </p>
+  </div>
+  {% if can_edit %}
+    <button
+      type="button"
+      id="open-add-product"
+      class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500 sm:w-auto"
+    >
+      <i data-lucide="plus" class="h-4 w-4"></i>
+      Add product
+    </button>
+  {% endif %}
+</div>
+
+{% if error %}
+  <p class="sr-only" id="product-page-error">{{ error }}</p>
+{% endif %}
+
+<div class="manage-board overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5">
+  <div class="manage-cols-products hidden border-b border-white/5 px-5 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500 lg:grid">
+    <span>Product</span>
+    <span class="text-center">Status</span>
+    <span class="text-right">Actions</span>
+  </div>
+  <ul class="divide-y divide-white/5">
+    {% for product in products %}
+      <li class="manage-cols-products px-3 py-3.5 transition hover:bg-white/[0.02] sm:px-4 lg:grid lg:px-5">
+        <button type="button" class="js-open-product flex min-w-0 w-full items-center gap-3 text-left" data-id="{{ product.id }}">
+          <span class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-ink-950 ring-1 ring-white/5 sm:h-11 sm:w-11">
+            {% if product.image_src %}
+              <img src="{{ product.image_src }}" alt="" class="h-full w-full object-cover">
+            {% else %}
+              <i data-lucide="coffee" class="h-5 w-5 text-slate-600"></i>
+            {% endif %}
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="flex items-start justify-between gap-2">
+              <p class="truncate text-sm font-extrabold text-white transition hover:text-caramel-400">{{ product.name }}</p>
+              <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide lg:hidden {% if product.is_available %}bg-emerald-500/15 text-emerald-300{% else %}bg-red-500/15 text-red-300{% endif %}">
+                {% if product.is_available %}Available{% else %}Sold out{% endif %}
+              </span>
+            </span>
+            <p class="mt-0.5 truncate text-xs font-semibold text-slate-500">
+              {{ product.category.name }} · KSh {{ product.price|floatformat:0 }}
+              {% if product.is_featured %} · Featured{% endif %}
+            </p>
+          </span>
+        </button>
+        <div class="mt-3 flex items-center gap-2 lg:mt-0 lg:contents">
+          <div class="hidden justify-center lg:flex">
+            <span class="rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide {% if product.is_available %}bg-emerald-500/15 text-emerald-300{% else %}bg-red-500/15 text-red-300{% endif %}">
+              {% if product.is_available %}Available{% else %}Sold out{% endif %}
+            </span>
+          </div>
+          <div class="flex min-w-0 flex-1 items-center gap-2 lg:flex-none lg:justify-end">
+            {% if 'catalog.toggle' in perms %}
+            <form method="post" action="{% url 'kahawa:product_toggle_available' product.id %}" class="min-w-0 flex-1 lg:flex-none">
+              {% csrf_token %}
+              <button type="submit" class="min-h-10 w-full rounded-full border border-white/10 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-300 hover:bg-white/5 lg:min-h-0 lg:w-auto lg:py-1.5">
+                {% if product.is_available %}Sold out{% else %}Available{% endif %}
+              </button>
+            </form>
+            {% endif %}
+            <button
+              type="button"
+              class="js-open-product min-h-10 shrink-0 rounded-full bg-white/5 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-caramel-400 hover:bg-white/10 lg:min-h-0 lg:py-1.5"
+              data-id="{{ product.id }}"
+            >
+              View
+            </button>
+          </div>
+        </div>
+      </li>
+    {% empty %}
+      <li class="px-5 py-14 text-center">
+        <p class="font-display text-lg text-slate-300">No products yet</p>
+        {% if can_edit %}
+          <button type="button" id="open-add-product-empty" class="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            Add product
+          </button>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<form method="post" id="product-delete-form" class="hidden">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="delete">
+  <input type="hidden" name="product_id" id="product-delete-id" value="">
+</form>
+{% endblock %}
+
+{% block manage_overlays %}
+{# View drawer #}
+<div id="drawer-product-view" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-product-view></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,26rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="view-product-title" class="min-w-0 truncate font-display text-xl font-semibold text-white">—</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-product-view aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+      <div id="view-product-image-wrap" class="mx-auto flex aspect-square w-full max-w-[16rem] items-center justify-center overflow-hidden rounded-2xl bg-ink-950 ring-1 ring-white/5 sm:max-w-none">
+        <img id="view-product-image" src="" alt="" class="hidden max-h-full max-w-full object-contain">
+        <i id="view-product-image-fallback" data-lucide="coffee" class="h-12 w-12 text-slate-600"></i>
+      </div>
+      <dl class="mt-5 space-y-3 text-sm">
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Price</dt>
+          <dd id="view-product-price" class="font-extrabold text-caramel-400">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Tax</dt>
+          <dd id="view-product-tax" class="font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Category</dt>
+          <dd id="view-product-category" class="font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Status</dt>
+          <dd id="view-product-status" class="font-extrabold text-white">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Prep</dt>
+          <dd id="view-product-prep" class="font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Allergens</dt>
+          <dd id="view-product-allergens" class="max-w-[60%] text-right font-bold text-slate-200">—</dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="font-semibold text-slate-500">Options</dt>
+          <dd id="view-product-options" class="max-w-[60%] text-right font-bold text-slate-200">—</dd>
+        </div>
+      </dl>
+      <p id="view-product-desc" class="mt-5 text-sm font-semibold leading-relaxed text-slate-400"></p>
+    </div>
+    <div class="flex shrink-0 gap-2 border-t border-white/5 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+      <button type="button" data-close-product-view class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Close</button>
+      {% if can_edit %}
+        <button type="button" id="view-product-edit-btn" class="min-h-11 flex-1 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">Edit</button>
+      {% endif %}
+    </div>
+  </aside>
+</div>
+
+{# Add / Edit drawer #}
+{% if can_edit %}
+<div id="drawer-product-form" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-product-form></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,28rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="form-product-title" class="font-display text-xl font-semibold text-white">Add product</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white" data-close-product-form aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <form method="post" enctype="multipart/form-data" id="product-form" class="flex min-h-0 flex-1 flex-col" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      <input type="hidden" name="product_id" id="form-product-id" value="">
+      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Name</span>
+          <input type="text" name="name" id="form-name" required class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Category</span>
+          <select name="category" id="form-category" required class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+            {% for cat in categories %}
+              <option value="{{ cat.id }}">{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Price (KSh)</span>
+            <input type="number" name="price" id="form-price" step="1" min="1" required inputmode="numeric" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Tax type</span>
+            <select name="tax_type" id="form-tax-type" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+              {% for code, label in tax_types %}
+                <option value="{{ code }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <p class="-mt-2 text-xs font-semibold text-slate-500">The price is what the customer pays. VAT is already inside it.</p>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Description</span>
+          <textarea name="description" id="form-description" rows="3" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500"></textarea>
+        </label>
+
+        <div class="space-y-3 rounded-2xl bg-ink-950/80 p-3 ring-1 ring-white/5 sm:p-4">
+          <p class="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Product image</p>
+          <div id="form-image-preview-wrap" class="hidden overflow-hidden rounded-xl bg-ink-900 ring-1 ring-white/5">
+            <img id="form-image-preview" src="" alt="" class="mx-auto max-h-36 object-contain sm:max-h-40">
+          </div>
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-bold text-slate-400">Upload</span>
+            <input type="file" name="image" id="form-image-file" accept="image/*" class="block w-full max-w-full text-xs font-semibold text-slate-400 file:mr-3 file:rounded-full file:border-0 file:bg-caramel-600 file:px-3 file:py-1.5 file:text-xs file:font-extrabold file:text-white hover:file:bg-caramel-500">
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-bold text-slate-400">Or image link</span>
+            <input type="url" name="image_url" id="form-image-url" placeholder="https://…" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+          </label>
+          <label id="form-clear-image-wrap" class="hidden inline-flex items-center gap-2 text-xs font-bold text-slate-400">
+            <input type="checkbox" name="clear_image" id="form-clear-image" class="rounded border-white/20 bg-ink-950 text-caramel-600">
+            Remove uploaded image
+          </label>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Prep minutes</span>
+            <input type="number" name="prep_minutes" id="form-prep" min="1" value="8" inputmode="numeric" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Allergens</span>
+            <input type="text" name="allergens" id="form-allergens" placeholder="milk, gluten" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+          </label>
+        </div>
+        <div class="flex flex-wrap gap-4">
+          <label class="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-slate-300">
+            <input type="checkbox" name="is_available" id="form-available" class="rounded border-white/20 bg-ink-950 text-caramel-600" checked>
+            Available
+          </label>
+          <label class="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-slate-300">
+            <input type="checkbox" name="is_featured" id="form-featured" class="rounded border-white/20 bg-ink-950 text-caramel-600">
+            Featured
+          </label>
+        </div>
+        <fieldset class="rounded-2xl bg-ink-950/60 p-3 ring-1 ring-white/5">
+          <legend class="px-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Add-to-bag options</legend>
+          <p class="mb-2 text-xs font-semibold text-slate-500">Leave these off for food. Drinks can offer size, milk, and an extra shot.</p>
+          <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <label class="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-slate-300">
+              <input type="checkbox" name="allow_size" id="form-allow-size" class="h-4 w-4 rounded border-white/20 bg-ink-950 text-caramel-600">
+              Size
+            </label>
+            <label class="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-slate-300">
+              <input type="checkbox" name="allow_milk" id="form-allow-milk" class="h-4 w-4 rounded border-white/20 bg-ink-950 text-caramel-600">
+              Milk
+            </label>
+            <label class="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-slate-300">
+              <input type="checkbox" name="allow_extra_shot" id="form-allow-shot" class="h-4 w-4 rounded border-white/20 bg-ink-950 text-caramel-600">
+              Extra shot
+            </label>
+          </div>
+        </fieldset>
+        <p id="form-product-error" class="hidden text-sm font-bold text-red-300"></p>
+      </div>
+      <div class="flex shrink-0 flex-wrap gap-2 border-t border-white/5 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-close-product-form class="min-h-11 rounded-full border border-white/10 px-4 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Cancel</button>
+        <button type="button" id="form-product-delete-btn" class="hidden min-h-11 rounded-full border border-rose-500/30 px-4 py-2.5 text-sm font-extrabold text-rose-300 hover:bg-rose-500/10">Delete</button>
+        <button type="submit" class="min-h-11 ml-auto flex-1 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500 sm:flex-none sm:px-8">Save</button>
+      </div>
+    </form>
+  </aside>
+</div>
+{% endif %}
+
+{# Delete warning #}
+{% if can_edit %}
+<div id="product-delete-confirm" class="fixed inset-0 z-[120] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-product-delete-cancel></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="product-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 pt-5 sm:px-5">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/15 text-rose-300">
+          <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+        </div>
+        <h2 class="mt-3 font-display text-xl font-semibold text-white">Delete product?</h2>
+        <p class="mt-2 text-sm font-semibold leading-relaxed text-slate-400">
+          <span id="product-delete-name" class="font-extrabold text-white">—</span> will be removed from the menu. Past orders keep their line history.
+        </p>
+      </div>
+      <div class="mt-5 flex gap-2 border-t border-white/5 px-4 py-4 sm:px-5" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-product-delete-cancel class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Keep</button>
+        <button type="button" id="product-delete-confirm-btn" class="min-h-11 flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-extrabold text-white hover:bg-rose-500">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    const PRODUCTS = {{ products_payload_json|safe }};
+    const byId = Object.fromEntries(PRODUCTS.map((p) => [String(p.id), p]));
+    const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
+    const REOPEN = '{{ reopen|default:""|escapejs }}';
+    const DRAFT = {{ draft_json|default:"{}"|safe }};
+    const HAS_ERROR = !!document.getElementById('product-page-error');
+    const params = new URLSearchParams(window.location.search);
+
+    const viewDrawer = document.getElementById('drawer-product-view');
+    const formDrawer = document.getElementById('drawer-product-form');
+    const deleteModal = document.getElementById('product-delete-confirm');
+    let activeId = null;
+    let pendingDeleteId = null;
+
+    function money(n) {
+      return Math.round(Number(n) || 0).toLocaleString('en-KE');
+    }
+
+    function openDrawer(el) {
+      if (!el) return;
+      el.classList.remove('hidden');
+      el.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      requestAnimationFrame(() => {
+        el.classList.add('is-open');
+        if (window.lucide) window.lucide.createIcons();
+      });
+    }
+
+    function closeDrawer(el) {
+      if (!el || el.classList.contains('hidden')) return;
+      el.classList.remove('is-open');
+      el.setAttribute('aria-hidden', 'true');
+      const done = () => {
+        el.classList.add('hidden');
+        if (
+          viewDrawer?.classList.contains('hidden') !== false &&
+          (!formDrawer || formDrawer.classList.contains('hidden')) &&
+          (!deleteModal || deleteModal.classList.contains('hidden'))
+        ) {
+          document.body.classList.remove('overflow-hidden');
+        }
+      };
+      // simpler unlock check
+      setTimeout(() => {
+        el.classList.add('hidden');
+        const anyOpen =
+          viewDrawer?.classList.contains('is-open') ||
+          formDrawer?.classList.contains('is-open') ||
+          (deleteModal && !deleteModal.classList.contains('hidden'));
+        if (!anyOpen) document.body.classList.remove('overflow-hidden');
+      }, 280);
+    }
+
+    function fillView(p) {
+      activeId = p.id;
+      document.getElementById('view-product-title').textContent = p.name;
+      document.getElementById('view-product-price').textContent = 'KSh ' + money(p.price);
+      document.getElementById('view-product-tax').textContent = ({
+        A: 'A · Exempt',
+        B: 'B · VAT 16%',
+        C: 'C · Zero rated',
+        D: 'D · Non-VAT',
+        E: 'E · VAT 8%',
+      })[p.tax_type] || 'B · VAT 16%';
+      document.getElementById('view-product-category').textContent = p.category_name || '—';
+      document.getElementById('view-product-status').textContent = p.is_available
+        ? (p.is_featured ? 'Available · Featured' : 'Available')
+        : 'Sold out';
+      document.getElementById('view-product-prep').textContent = (p.prep_minutes || 8) + ' min';
+      document.getElementById('view-product-allergens').textContent = p.allergens || '—';
+      const options = [];
+      if (p.allow_size) options.push('Size');
+      if (p.allow_milk) options.push('Milk');
+      if (p.allow_extra_shot) options.push('Extra shot');
+      document.getElementById('view-product-options').textContent = options.length ? options.join(' · ') : 'None';
+      document.getElementById('view-product-desc').textContent = p.description || '';
+      const img = document.getElementById('view-product-image');
+      const fallback = document.getElementById('view-product-image-fallback');
+      if (p.image_src) {
+        img.src = p.image_src;
+        img.classList.remove('hidden');
+        fallback.classList.add('hidden');
+      } else {
+        img.classList.add('hidden');
+        img.removeAttribute('src');
+        fallback.classList.remove('hidden');
+      }
+    }
+
+    function openView(p) {
+      closeDrawer(formDrawer);
+      fillView(p);
+      openDrawer(viewDrawer);
+    }
+
+    function resetForm() {
+      document.getElementById('form-product-id').value = '';
+      document.getElementById('form-name').value = '';
+      document.getElementById('form-price').value = '';
+      document.getElementById('form-tax-type').value = 'B';
+      document.getElementById('form-description').value = '';
+      document.getElementById('form-image-url').value = '';
+      document.getElementById('form-image-file').value = '';
+      document.getElementById('form-prep').value = '8';
+      document.getElementById('form-allergens').value = '';
+      document.getElementById('form-available').checked = true;
+      document.getElementById('form-featured').checked = false;
+      document.getElementById('form-allow-size').checked = false;
+      document.getElementById('form-allow-milk').checked = false;
+      document.getElementById('form-allow-shot').checked = false;
+      document.getElementById('form-clear-image').checked = false;
+      document.getElementById('form-clear-image-wrap').classList.add('hidden');
+      document.getElementById('form-image-preview-wrap').classList.add('hidden');
+      document.getElementById('form-product-error').classList.add('hidden');
+      document.getElementById('form-product-delete-btn').classList.add('hidden');
+      const cat = document.getElementById('form-category');
+      if (cat?.options?.length) cat.selectedIndex = 0;
+    }
+
+    function fillForm(p) {
+      document.getElementById('form-product-title').textContent = p && p.id ? 'Edit product' : 'Add product';
+      document.getElementById('form-product-id').value = p?.id || '';
+      document.getElementById('form-name').value = p?.name || '';
+      document.getElementById('form-price').value = p?.price !== '' && p?.price != null ? Math.round(Number(p.price)) || p.price : '';
+      document.getElementById('form-tax-type').value = p?.tax_type || 'B';
+      document.getElementById('form-description').value = p?.description || '';
+      document.getElementById('form-image-url').value = p?.image_url || '';
+      document.getElementById('form-image-file').value = '';
+      document.getElementById('form-prep').value = p?.prep_minutes || 8;
+      document.getElementById('form-allergens').value = p?.allergens || '';
+      document.getElementById('form-available').checked = p ? p.is_available !== false : true;
+      document.getElementById('form-featured').checked = !!p?.is_featured;
+      document.getElementById('form-allow-size').checked = !!p?.allow_size;
+      document.getElementById('form-allow-milk').checked = !!p?.allow_milk;
+      document.getElementById('form-allow-shot').checked = !!p?.allow_extra_shot;
+      document.getElementById('form-clear-image').checked = false;
+      document.getElementById('form-clear-image-wrap').classList.toggle('hidden', !(p && p.has_upload));
+      document.getElementById('form-product-delete-btn').classList.toggle('hidden', !(p && p.id));
+      if (p?.category_id) {
+        document.getElementById('form-category').value = String(p.category_id);
+      }
+      const preview = document.getElementById('form-image-preview');
+      const wrap = document.getElementById('form-image-preview-wrap');
+      if (p?.image_src) {
+        preview.src = p.image_src;
+        wrap.classList.remove('hidden');
+      } else {
+        wrap.classList.add('hidden');
+        preview.removeAttribute('src');
+      }
+      document.getElementById('form-product-error').classList.add('hidden');
+    }
+
+    function openForm(p) {
+      closeDrawer(viewDrawer);
+      if (p) fillForm(p);
+      else {
+        resetForm();
+        document.getElementById('form-product-title').textContent = 'Add product';
+      }
+      openDrawer(formDrawer);
+      document.getElementById('form-name')?.focus();
+    }
+
+    function openDeleteConfirm(id, name) {
+      pendingDeleteId = id;
+      document.getElementById('product-delete-name').textContent = name || 'This product';
+      deleteModal.classList.remove('hidden');
+      deleteModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeDeleteConfirm() {
+      pendingDeleteId = null;
+      if (!deleteModal) return;
+      deleteModal.classList.add('hidden');
+      deleteModal.setAttribute('aria-hidden', 'true');
+      if (!viewDrawer?.classList.contains('is-open') && !formDrawer?.classList.contains('is-open')) {
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    document.querySelectorAll('.js-open-product').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = byId[btn.dataset.id];
+        if (p) openView(p);
+      });
+    });
+
+    document.querySelectorAll('[data-close-product-view]').forEach((el) => {
+      el.addEventListener('click', () => closeDrawer(viewDrawer));
+    });
+    document.querySelectorAll('[data-close-product-form]').forEach((el) => {
+      el.addEventListener('click', () => closeDrawer(formDrawer));
+    });
+
+    document.getElementById('open-add-product')?.addEventListener('click', () => openForm(null));
+    document.getElementById('open-add-product-empty')?.addEventListener('click', () => openForm(null));
+    document.getElementById('view-product-edit-btn')?.addEventListener('click', () => {
+      const p = byId[String(activeId)];
+      if (p) openForm(p);
+    });
+
+    document.getElementById('form-product-delete-btn')?.addEventListener('click', () => {
+      const id = document.getElementById('form-product-id').value;
+      const p = byId[id];
+      openDeleteConfirm(id, p?.name || document.getElementById('form-name').value);
+    });
+
+    document.querySelectorAll('[data-product-delete-cancel]').forEach((el) => {
+      el.addEventListener('click', closeDeleteConfirm);
+    });
+    document.getElementById('product-delete-confirm-btn')?.addEventListener('click', () => {
+      if (!pendingDeleteId) return;
+      document.getElementById('product-delete-id').value = pendingDeleteId;
+      document.getElementById('product-delete-form').submit();
+    });
+
+    document.getElementById('form-image-file')?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      const preview = document.getElementById('form-image-preview');
+      const wrap = document.getElementById('form-image-preview-wrap');
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      preview.src = url;
+      wrap.classList.remove('hidden');
+    });
+
+    document.getElementById('form-image-url')?.addEventListener('change', (e) => {
+      const val = e.target.value.trim();
+      if (!val || document.getElementById('form-image-file').files?.length) return;
+      const preview = document.getElementById('form-image-preview');
+      const wrap = document.getElementById('form-image-preview-wrap');
+      preview.src = val;
+      wrap.classList.remove('hidden');
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (deleteModal && !deleteModal.classList.contains('hidden')) {
+        closeDeleteConfirm();
+        return;
+      }
+      if (formDrawer?.classList.contains('is-open')) closeDrawer(formDrawer);
+      else if (viewDrawer?.classList.contains('is-open')) closeDrawer(viewDrawer);
+    });
+
+    // Deep links / reopen after validation error
+    if (HAS_ERROR && CAN_EDIT) {
+      const err = document.getElementById('product-page-error');
+      const formErr = document.getElementById('form-product-error');
+      const draftAsProduct = {
+        id: DRAFT.id || '',
+        name: DRAFT.name || '',
+        description: DRAFT.description || '',
+        price: DRAFT.price || '',
+        category_id: DRAFT.category_id || '',
+        image_url: DRAFT.image_url || '',
+        image_src: DRAFT.image_src || '',
+        has_upload: !!DRAFT.has_upload,
+        prep_minutes: DRAFT.prep_minutes || 8,
+        allergens: DRAFT.allergens || '',
+        is_featured: !!DRAFT.is_featured,
+        is_available: DRAFT.is_available !== false,
+        allow_size: !!DRAFT.allow_size,
+        allow_milk: !!DRAFT.allow_milk,
+        allow_extra_shot: !!DRAFT.allow_extra_shot,
+      };
+      openForm(DRAFT.id ? draftAsProduct : null);
+      if (!DRAFT.id) {
+        fillForm(draftAsProduct);
+        document.getElementById('form-product-title').textContent = 'Add product';
+        document.getElementById('form-product-delete-btn').classList.add('hidden');
+      }
+      if (err && formErr) {
+        formErr.textContent = err.textContent.trim();
+        formErr.classList.remove('hidden');
+      }
+    } else if (CAN_EDIT && params.get('new') === '1') {
+      openForm(null);
+      history.replaceState({}, '', '{% url "kahawa:manage_products" %}');
+    } else if (params.get('edit')) {
+      const p = byId[params.get('edit')];
+      if (p) {
+        if (CAN_EDIT) openForm(p);
+        else openView(p);
+      }
+      history.replaceState({}, '', '{% url "kahawa:manage_products" %}');
+    }
+  })();
+</script>
+{% endblock %}

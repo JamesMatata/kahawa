@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block extra_head %}
+<style>
+  @keyframes kahawa-fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up { animation: kahawa-fade-up 0.65s ease-out both; }
+  .animate-fade-up-delay { animation: kahawa-fade-up 0.65s ease-out 0.12s both; }
+  .product-card img { transition: transform 0.5s ease; }
+  .featured-track {
+    display: flex;
+    transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  .featured-slide {
+    flex: 0 0 100%;
+    padding: 0 0.35rem;
+  }
+  @media (min-width: 640px) {
+    .featured-slide {
+      flex: 0 0 50%;
+      padding: 0 0.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .featured-slide {
+      flex: 0 0 33.333%;
+      padding: 0 0.6rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{# —— Hero —— #}
+<section class="border-b border-caramel-400/15">
+  <div class="mx-auto max-w-6xl px-4 pb-10 pt-8 sm:px-6 sm:pb-14 sm:pt-12 lg:pb-16 lg:pt-14">
+    <div class="animate-fade-up flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between sm:gap-8 lg:gap-12">
+      <div class="min-w-0 flex-1 text-left">
+        <h1 class="font-display text-[2rem] font-semibold leading-[1.08] tracking-tight text-espresso-900 xs:text-4xl sm:text-5xl lg:text-6xl">
+          Your Daily Spark,<br>
+          <span class="text-caramel-600">Brewed Fresh</span>
+        </h1>
+      </div>
+
+      <div class="flex w-full shrink-0 gap-2.5 sm:w-auto sm:gap-3">
+        <a href="{% url 'kahawa:menu' %}" class="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-caramel-600 px-5 py-3 text-sm font-semibold text-cream-50 transition hover:bg-caramel-700 sm:flex-none sm:px-7 sm:py-3.5">
+          Order Now
+          <i data-lucide="arrow-right" class="h-4 w-4"></i>
+        </a>
+        <a href="{% url 'kahawa:track_order' %}" class="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-espresso-800/15 bg-cream-50 px-5 py-3 text-sm font-semibold text-espresso-800 transition hover:bg-cream-200/50 sm:flex-none sm:px-6 sm:py-3.5">
+          Track Order
+        </a>
+      </div>
+    </div>
+
+    <div class="animate-fade-up-delay mt-6 overflow-hidden rounded-xl sm:mt-8 sm:rounded-2xl lg:mt-10">
+      <img
+        src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1600&q=80"
+        alt="Fresh Kahawa coffee pour"
+        class="h-56 w-full object-cover sm:h-80 lg:h-[26rem]"
+      >
+    </div>
+  </div>
+</section>
+
+{% if packages %}
+<section class="mx-auto max-w-6xl px-4 pt-10 sm:px-6">
+  <h2 class="font-display text-2xl font-semibold text-espresso-900 sm:text-3xl">Offers</h2>
+  <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {% for package in packages %}
+      {% include "store/partials/package_card.html" with package=package %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# —— Staff Picks —— #}
+<section class="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
+  <div class="mb-6 flex items-end justify-between gap-3 sm:mb-8">
+    <h2 class="font-display text-2xl font-semibold text-espresso-900 sm:text-3xl lg:text-4xl">Staff Picks</h2>
+    <a href="{% url 'kahawa:menu' %}" class="shrink-0 text-sm font-semibold text-caramel-700 transition hover:text-caramel-600">
+      See all →
+    </a>
+  </div>
+
+  {% if featured_products %}
+    <div id="featured-carousel" class="relative" aria-roledescription="carousel" aria-label="Staff picks">
+      <button type="button" id="featured-prev" class="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl bg-cream-50/95 text-espresso-800 ring-1 ring-caramel-400/25 transition hover:bg-caramel-600 hover:text-cream-50 sm:inline-flex sm:-translate-x-1 md:-translate-x-4 lg:-translate-x-5" aria-label="Previous staff picks">
+        <i data-lucide="chevron-left" class="h-5 w-5"></i>
+      </button>
+      <button type="button" id="featured-next" class="absolute right-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl bg-cream-50/95 text-espresso-800 ring-1 ring-caramel-400/25 transition hover:bg-caramel-600 hover:text-cream-50 sm:inline-flex sm:translate-x-1 md:translate-x-4 lg:translate-x-5" aria-label="Next staff picks">
+        <i data-lucide="chevron-right" class="h-5 w-5"></i>
+      </button>
+
+      <div class="overflow-hidden px-0 sm:px-1">
+        <div class="featured-track" id="featured-track">
+          {% for product in featured_products %}
+            <div class="featured-slide">
+              {% include "store/partials/product_card.html" with product=product %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div id="featured-dots" class="mt-5 flex justify-center gap-2 sm:mt-6" aria-hidden="true"></div>
+  {% else %}
+    <div class="rounded-xl border border-dashed border-caramel-400/40 bg-cream-100/50 px-5 py-10 text-center sm:px-6 sm:py-12">
+      <p class="font-display text-lg text-espresso-800 sm:text-xl">Staff picks coming soon</p>
+      <p class="mt-2 text-sm font-medium text-espresso-700/60">Mark products as featured in Manage to show them here.</p>
+    </div>
+  {% endif %}
+</section>
+
+{# —— Why Kahawa —— #}
+<section class="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
+  <div class="mx-auto max-w-md text-center sm:mx-0 sm:text-left">
+    <h2 class="font-display text-2xl font-semibold text-espresso-900 sm:text-3xl lg:text-4xl">Why Kahawa</h2>
+    <p class="mx-auto mt-2 max-w-sm text-sm font-medium leading-relaxed text-espresso-700/65 sm:mx-0 sm:mt-3 sm:text-[0.9375rem]">
+      Built for Nairobi pace — fast, local, and easy on the planet.
+    </p>
+  </div>
+
+  <ul class="mt-6 grid gap-0 text-center sm:mt-10 sm:grid-cols-3 sm:gap-6 sm:text-left lg:mt-12 lg:gap-0 lg:divide-x lg:divide-caramel-400/25">
+    <li class="flex flex-col items-center pb-4 sm:items-start sm:pb-0 lg:px-6">
+      <i data-lucide="zap" class="h-5 w-5 text-caramel-600"></i>
+      <h3 class="mt-2 font-display text-lg font-semibold text-espresso-900 sm:mt-3 sm:text-xl">Under 10 mins</h3>
+      <p class="mt-1 max-w-[16rem] text-sm font-medium leading-relaxed text-espresso-700/60 sm:mt-2 sm:max-w-none">
+        Order ahead and grab your cup without the queue.
+      </p>
+      <hr class="mt-4 w-12 border-0 border-t border-caramel-400/30 sm:hidden">
+    </li>
+    <li class="flex flex-col items-center py-4 sm:items-start sm:py-0 lg:px-6">
+      <i data-lucide="map-pinned" class="h-5 w-5 text-caramel-600"></i>
+      <h3 class="mt-2 font-display text-lg font-semibold text-espresso-900 sm:mt-3 sm:text-xl">Locally sourced</h3>
+      <p class="mt-1 max-w-[16rem] text-sm font-medium leading-relaxed text-espresso-700/60 sm:mt-2 sm:max-w-none">
+        Kenyan highland beans, roasted for real flavour.
+      </p>
+      <hr class="mt-4 w-12 border-0 border-t border-caramel-400/30 sm:hidden">
+    </li>
+    <li class="flex flex-col items-center pt-4 sm:items-start sm:pt-0 lg:px-6">
+      <i data-lucide="leaf" class="h-5 w-5 text-caramel-600"></i>
+      <h3 class="mt-2 font-display text-lg font-semibold text-espresso-900 sm:mt-3 sm:text-xl">Eco cups</h3>
+      <p class="mt-1 max-w-[16rem] text-sm font-medium leading-relaxed text-espresso-700/60 sm:mt-2 sm:max-w-none">
+        Compostable cups and lids for everyday rituals.
+      </p>
+    </li>
+  </ul>
+</section>
+
+{# —— Menu CTA —— #}
+<section class="mx-auto max-w-6xl px-4 pb-12 pt-4 sm:px-6 sm:pb-16 sm:pt-6 lg:pb-20">
+  <div class="rounded-xl bg-caramel-600 px-5 py-10 text-center sm:rounded-2xl sm:px-10 sm:py-12 lg:px-12 lg:py-14">
+    <h2 class="font-display text-2xl font-semibold text-cream-50 sm:text-3xl lg:text-4xl">Craving more?</h2>
+    <p class="mx-auto mt-2 max-w-md text-sm font-medium text-cream-100/85 sm:mt-3 sm:text-base">
+      Cold brews, pastries, bites — the full menu is waiting.
+    </p>
+    <a href="{% url 'kahawa:menu' %}" class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-cream-50 px-8 py-3.5 text-sm font-semibold text-espresso-900 transition hover:bg-cream-100 sm:mt-7 sm:w-auto">
+      Explore Full Menu
+      <i data-lucide="utensils" class="h-4 w-4"></i>
+    </a>
+  </div>
+</section>
+
+{% include "store/partials/customize_modal.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const track = document.getElementById('featured-track');
+    const carousel = document.getElementById('featured-carousel');
+    if (!track || !carousel) return;
+
+    const slides = Array.from(track.querySelectorAll('.featured-slide'));
+    const prevBtn = document.getElementById('featured-prev');
+    const nextBtn = document.getElementById('featured-next');
+    const dotsEl = document.getElementById('featured-dots');
+    const AUTO_MS = 4500;
+
+    let index = 0;
+    let timer = null;
+
+    function perView() {
+      if (window.matchMedia('(min-width: 1024px)').matches) return 3;
+      if (window.matchMedia('(min-width: 640px)').matches) return 2;
+      return 1;
+    }
+
+    function maxIndex() {
+      return Math.max(0, slides.length - perView());
+    }
+
+    function goTo(i) {
+      index = Math.max(0, Math.min(i, maxIndex()));
+      const pct = (100 / perView()) * index;
+      track.style.transform = `translateX(-${pct}%)`;
+      updateDots();
+    }
+
+    function next() {
+      goTo(index >= maxIndex() ? 0 : index + 1);
+    }
+
+    function prev() {
+      goTo(index <= 0 ? maxIndex() : index - 1);
+    }
+
+    function buildDots() {
+      if (!dotsEl) return;
+      const pages = maxIndex() + 1;
+      dotsEl.innerHTML = '';
+      for (let i = 0; i < pages; i += 1) {
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'h-2 w-2 rounded-full bg-caramel-400/35 transition hover:bg-caramel-500 sm:h-2.5 sm:w-2.5';
+        dot.setAttribute('aria-label', `Go to staff picks page ${i + 1}`);
+        dot.addEventListener('click', () => {
+          goTo(i);
+          restart();
+        });
+        dotsEl.appendChild(dot);
+      }
+      updateDots();
+    }
+
+    function updateDots() {
+      if (!dotsEl) return;
+      Array.from(dotsEl.children).forEach((dot, i) => {
+        dot.classList.toggle('bg-caramel-600', i === index);
+        dot.classList.toggle('w-5', i === index);
+        dot.classList.toggle('sm:w-6', i === index);
+        dot.classList.toggle('bg-caramel-400/35', i !== index);
+      });
+    }
+
+    function restart() {
+      clearInterval(timer);
+      if (slides.length > perView()) {
+        timer = setInterval(next, AUTO_MS);
+      }
+    }
+
+    prevBtn?.addEventListener('click', () => {
+      prev();
+      restart();
+    });
+    nextBtn?.addEventListener('click', () => {
+      next();
+      restart();
+    });
+
+    carousel.addEventListener('mouseenter', () => clearInterval(timer));
+    carousel.addEventListener('mouseleave', restart);
+
+    let touchStartX = 0;
+    carousel.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+      clearInterval(timer);
+    }, { passive: true });
+    carousel.addEventListener('touchend', (e) => {
+      const dx = e.changedTouches[0].screenX - touchStartX;
+      if (Math.abs(dx) > 40) {
+        if (dx < 0) next();
+        else prev();
+      }
+      restart();
+    }, { passive: true });
+
+    window.addEventListener('resize', () => {
+      goTo(Math.min(index, maxIndex()));
+      buildDots();
+      restart();
+    });
+
+    buildDots();
+    goTo(0);
+    restart();
+    if (window.lucide) window.lucide.createIcons();
+  })();
+</script>
+{% endblock %}

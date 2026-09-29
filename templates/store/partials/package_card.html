@@ -1,0 +1,33 @@
+<article class="flex h-full flex-col rounded-xl bg-[#F2EDE6] p-4 ring-1 ring-caramel-400/20">
+  {% if package.image_src %}
+    <img src="{{ package.image_src }}" alt="" class="mb-3 w-full rounded-lg object-cover" style="aspect-ratio: 16 / 9;">
+  {% endif %}
+  <p class="text-[11px] font-extrabold uppercase tracking-wide text-caramel-700">Offer</p>
+  <h3 class="mt-1 font-display text-xl text-espresso-900">{{ package.name }}</h3>
+  {% if package.description %}
+    <p class="mt-1 text-sm font-semibold text-espresso-700/70">{{ package.description }}</p>
+  {% endif %}
+  <p class="mt-2 text-xs font-semibold text-espresso-700/60">
+    {% for row in package.items.all %}{{ row.quantity }}× {{ row.product.name }}{% if not forloop.last %} · {% endif %}{% endfor %}
+  </p>
+  <div class="mt-auto flex items-center justify-between gap-3 pt-4">
+    <p class="text-sm font-extrabold text-espresso-900">
+      KSh {{ package.price|floatformat:0 }}
+      {% if package.compare_at > package.price %}
+        <span class="ml-1 text-xs font-semibold text-espresso-700/45 line-through">KSh {{ package.compare_at|floatformat:0 }}</span>
+      {% endif %}
+    </p>
+    <button
+      type="button"
+      class="js-add-package rounded-full bg-espresso-800 px-4 py-2 text-sm font-extrabold text-cream-50 hover:bg-espresso-900"
+      data-package-id="{{ package.id }}"
+      data-package-name="{{ package.name }}"
+      data-package-price="{{ package.price }}"
+      data-package-image="{{ package.image_src }}"
+      data-package-includes="{% for row in package.items.all %}{{ row.quantity }}× {{ row.product.name }}{% if not forloop.last %} · {% endif %}{% endfor %}"
+      data-tax-type="{{ package.tax_type }}"
+    >
+      Add
+    </button>
+  </div>
+</article>

@@ -1,0 +1,1596 @@
+{% extends "staff/base_manage.html" %}
+
+{% block title %}Live ops{% endblock %}
+
+{% block topbar_status %}
+  <span id="live-indicator" class="inline-flex max-w-full items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-400 ring-1 ring-emerald-500/20 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-xs">
+    <span class="relative flex h-2 w-2 shrink-0">
+      <span class="pulse-dot absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+      <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+    </span>
+    <span class="truncate">Live</span>
+  </span>
+  <span class="hidden truncate text-[11px] font-bold text-slate-500 sm:inline sm:text-xs" id="last-refresh">Synced —</span>
+{% endblock %}
+
+{% block main_class %}max-w-[1600px]{% endblock %}
+
+{% block extra_head %}
+<style>
+  .manage-drawer { pointer-events: none; }
+  .manage-drawer.is-open { pointer-events: auto; }
+  .manage-drawer-backdrop { opacity: 0; transition: opacity 0.25s ease; }
+  .manage-drawer.is-open .manage-drawer-backdrop { opacity: 1; }
+  .manage-drawer-panel {
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .manage-drawer.is-open .manage-drawer-panel { transform: translateY(0); }
+  @media (min-width: 768px) {
+    .manage-drawer-panel { transform: translateX(100%); }
+    .manage-drawer.is-open .manage-drawer-panel { transform: translateX(0); }
+  }
+  .ops-chip.is-on {
+    background: rgba(217, 119, 6, 0.2);
+    color: #f0a868;
+    box-shadow: inset 0 0 0 1px rgba(232, 145, 74, 0.45);
+  }
+  .ops-status-tab.is-on {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  }
+  .ops-chip-row {
+    display: flex;
+    gap: 0.375rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 0.125rem;
+  }
+  .ops-chip-row::-webkit-scrollbar { display: none; }
+  .ops-chip-row > * { flex-shrink: 0; }
+  .ops-stat-scroll {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 0.125rem;
+  }
+  .ops-stat-scroll::-webkit-scrollbar { display: none; }
+  .ops-stat-scroll > * {
+    flex: 0 0 auto;
+    min-width: 6.75rem;
+  }
+  /* Kitchen-only (3 cards): always a tidy grid */
+  .ops-stat-scroll:not(.has-analytics) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+    gap: 0.5rem;
+  }
+  .ops-stat-scroll:not(.has-analytics) > * { min-width: 0; }
+  @media (min-width: 640px) {
+    .ops-stat-scroll:not(.has-analytics) { gap: 0.75rem; }
+  }
+  @media (min-width: 1024px) {
+    .ops-stat-scroll.has-analytics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      overflow: visible;
+      gap: 0.75rem;
+    }
+    .ops-stat-scroll.has-analytics > * { min-width: 0; }
+  }
+  .co-choice {
+    position: relative;
+    display: block;
+  }
+  .co-choice > input[type="radio"] {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    margin: 0;
+    cursor: pointer;
+    opacity: 0;
+  }
+  .co-choice > input[type="radio"]:disabled {
+    cursor: not-allowed;
+  }
+  .co-choice > input[type="radio"]:checked + .co-choice-face {
+    background: rgba(217, 119, 6, 0.2);
+    box-shadow: inset 0 0 0 1px rgb(217 119 6);
+  }
+  .co-choice.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+  .co-scroll {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .co-table-menu {
+    max-height: 12rem;
+  }
+  .ops-modal-panel {
+    max-height: min(90dvh, 36rem);
+  }
+  .ops-order-actions {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5rem;
+  }
+  @media (min-width: 1024px) {
+    .ops-board-head,
+    .ops-order-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 6.5rem 6.5rem max-content;
+      align-items: center;
+      column-gap: 1rem;
+    }
+    .ops-order-actions {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+    .ops-order-actions > * { flex-shrink: 0; }
+  }
+  .order-drawer-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.75rem 1rem;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  }
+  .order-drawer-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+  }
+  .order-drawer-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    color: #94a3b8;
+  }
+  .order-drawer-icon:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+  }
+  .order-drawer-icon.is-danger { color: #fda4af; }
+  .order-drawer-icon.is-danger:hover {
+    background: rgba(244, 63, 94, 0.12);
+    color: #ffe4e6;
+  }
+  .order-drawer-primary {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .order-drawer-btn {
+    height: 2.5rem;
+    padding: 0 0.95rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .order-drawer-btn.is-main {
+    background: #D97706;
+    color: #fff;
+  }
+  .order-drawer-btn.is-main:hover { background: #E8914A; }
+  .order-drawer-btn.is-quiet {
+    color: #F0A868;
+    box-shadow: inset 0 0 0 1px rgba(232, 145, 74, 0.45);
+  }
+  .order-drawer-btn.is-quiet:hover { background: rgba(217, 119, 6, 0.14); }
+  @media (max-width: 420px) {
+    .order-drawer-footer { flex-wrap: wrap; }
+    .order-drawer-primary { width: 100%; margin-left: 0; }
+    .order-drawer-btn { flex: 1 1 auto; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+  <div class="min-w-0">
+    <h1 class="font-display text-2xl font-semibold text-white sm:text-3xl">Live ops</h1>
+    <p class="mt-1 text-sm font-semibold text-slate-400">Live queue · tap an order for details</p>
+  </div>
+  {% if 'ops.create_order' in perms %}
+    <button
+      type="button"
+      id="open-new-order"
+      class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-caramel-500 sm:w-auto"
+    >
+      <i data-lucide="plus" class="h-4 w-4"></i>
+      New order
+    </button>
+  {% endif %}
+</div>
+
+{# Status strip — swipeable on phones, grid from sm #}
+<div class="ops-stat-scroll mb-4 {% if 'analytics.view' in perms %}has-analytics{% endif %}">
+  {% if 'analytics.view' in perms %}
+  <article class="rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-white/5 sm:px-4">
+    <p class="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Revenue</p>
+    <p class="mt-1 truncate font-display text-lg font-semibold text-white sm:text-2xl">
+      <span id="stat-revenue">{{ analytics.revenue_display }}</span>
+    </p>
+  </article>
+  <article class="rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-white/5 sm:px-4">
+    <p class="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Today</p>
+    <p class="mt-1 font-display text-lg font-semibold text-white sm:text-2xl" id="stat-total">{{ analytics.total_orders }}</p>
+  </article>
+  {% endif %}
+  <article class="js-stat-tab cursor-pointer rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-amber-500/20 transition hover:ring-amber-500/40 sm:px-4" data-jump-status="PENDING">
+    <p class="text-[10px] font-extrabold uppercase tracking-wide text-amber-400/90">Pending</p>
+    <p class="mt-1 font-display text-lg font-semibold text-amber-300 sm:text-2xl" id="stat-pending">{{ analytics.pending }}</p>
+  </article>
+  <article class="js-stat-tab cursor-pointer rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-sky-500/15 transition hover:ring-sky-500/35 sm:px-4" data-jump-status="PREPARING">
+    <p class="text-[10px] font-extrabold uppercase tracking-wide text-sky-400/80">Preparing</p>
+    <p class="mt-1 font-display text-lg font-semibold text-sky-300 sm:text-2xl" id="stat-preparing">{{ analytics.preparing }}</p>
+  </article>
+  <article class="js-stat-tab cursor-pointer rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-violet-500/15 transition hover:ring-violet-500/35 sm:px-4" data-jump-status="READY">
+    <p class="text-[10px] font-extrabold uppercase tracking-wide text-violet-300/80">Ready</p>
+    <p class="mt-1 font-display text-lg font-semibold text-violet-300 sm:text-2xl" id="stat-ready">{{ analytics.ready }}</p>
+  </article>
+</div>
+
+{# Filters #}
+<div class="mb-4 space-y-3 rounded-2xl bg-ink-850/90 p-3 ring-1 ring-white/5 sm:p-3.5">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+    <label class="relative min-w-0 flex-1">
+      <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"></i>
+      <input
+        type="search"
+        id="ops-search"
+        placeholder="Search code, name, phone…"
+        class="w-full rounded-xl bg-ink-950 py-2.5 pl-9 pr-3 text-sm font-bold text-white ring-1 ring-white/10 outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-caramel-500"
+      >
+    </label>
+    <div class="ops-chip-row" aria-label="Order filters">
+      <button type="button" class="ops-chip rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-filter="unpaid">Unpaid</button>
+      <button type="button" class="ops-chip rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-filter="pickup">Pickup</button>
+      <button type="button" class="ops-chip rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-filter="dine_in">Dine in</button>
+      <button type="button" class="ops-chip rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-filter="delivery">Delivery</button>
+      <button type="button" class="ops-chip rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-filter="counter">Counter</button>
+    </div>
+  </div>
+  <div class="ops-chip-row border-t border-white/5 pt-3" role="tablist" aria-label="Order status">
+    <button type="button" class="ops-status-tab is-on rounded-full px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-status-tab="active" aria-pressed="true">Active</button>
+    <button type="button" class="ops-status-tab rounded-full px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-status-tab="PENDING" aria-pressed="false">Pending <span class="ml-1 tabular-nums text-amber-300/90" data-tab-count="PENDING">0</span></button>
+    <button type="button" class="ops-status-tab rounded-full px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-status-tab="PREPARING" aria-pressed="false">Prep <span class="ml-1 tabular-nums text-sky-300/90" data-tab-count="PREPARING">0</span></button>
+    <button type="button" class="ops-status-tab rounded-full px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-status-tab="READY" aria-pressed="false">Ready <span class="ml-1 tabular-nums text-violet-300/90" data-tab-count="READY">0</span></button>
+    <button type="button" class="ops-status-tab rounded-full px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-status-tab="COMPLETED" aria-pressed="false">Done <span class="ml-1 tabular-nums text-emerald-300/90" data-tab-count="COMPLETED">0</span></button>
+    <button type="button" class="ops-status-tab rounded-full px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-400 hover:bg-white/5" data-status-tab="all" aria-pressed="false">All</button>
+  </div>
+</div>
+
+<div class="manage-board overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5" id="ops-board">
+  <div class="ops-board-head hidden border-b border-white/5 px-5 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
+    <span>Order</span>
+    <span class="text-center">Status</span>
+    <span class="text-right">Total</span>
+    <span class="text-right">Action</span>
+  </div>
+  <ul id="ops-order-list" class="divide-y divide-white/5"></ul>
+</div>
+
+{{ initial_payload|json_script:"initial-ops-payload" }}
+{% endblock %}
+{% block manage_overlays %}
+{# Order detail drawer #}
+<div id="drawer-order" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-order></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:max-h-none md:h-[calc(100dvh-var(--manage-topbar-offset))] md:w-[min(100%,26rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 id="order-drawer-title" class="min-w-0 truncate font-mono text-lg font-semibold text-white">—</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5" data-close-order aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5" id="order-drawer-body"></div>
+    <div class="order-drawer-footer shrink-0" id="order-drawer-actions"></div>
+  </aside>
+</div>
+
+{% if 'ops.create_order' in perms %}
+{# New order drawer #}
+<div id="drawer-new-order" class="manage-drawer fixed inset-0 z-[110] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="manage-drawer-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm md:top-[var(--manage-topbar-offset)]" data-close-new-order></div>
+  <aside class="manage-drawer-panel absolute inset-x-0 bottom-0 flex h-[min(92dvh,calc(100dvh-var(--manage-topbar-offset)))] w-full flex-col overflow-hidden rounded-t-2xl bg-ink-850 ring-1 ring-white/10 md:inset-x-auto md:bottom-0 md:left-auto md:right-0 md:top-[var(--manage-topbar-offset)] md:h-[calc(100dvh-var(--manage-topbar-offset))] md:max-h-none md:w-[min(100%,28rem)] md:rounded-none md:border-l md:border-white/10 md:ring-0">
+    <div class="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 md:hidden" aria-hidden="true"></div>
+    <div class="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3.5 sm:px-5 sm:py-4">
+      <h2 class="font-display text-xl font-semibold text-white">New order</h2>
+      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5" data-close-new-order aria-label="Close">
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <div class="co-scroll min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
+      <div class="grid gap-3">
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Name <span class="normal-case text-slate-600">(optional)</span></span>
+          <input type="text" id="co-name" placeholder="Walk-in" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Phone <span class="normal-case text-slate-600">(optional · needed for M-Pesa)</span></span>
+          <input type="tel" id="co-phone" placeholder="07XXXXXXXX" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+      </div>
+
+      <fieldset>
+        <legend class="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Type</legend>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="co-choice cursor-pointer">
+            <input type="radio" name="co-type" value="PICKUP" checked>
+            <span class="co-choice-face flex flex-col rounded-2xl bg-ink-950 px-3 py-3 ring-1 ring-white/10">
+              <span class="text-sm font-extrabold text-white">Pickup</span>
+              <span class="mt-0.5 text-[11px] font-semibold text-slate-500">Counter collect</span>
+            </span>
+          </label>
+          <label class="co-choice cursor-pointer">
+            <input type="radio" name="co-type" value="DINE_IN">
+            <span class="co-choice-face flex flex-col rounded-2xl bg-ink-950 px-3 py-3 ring-1 ring-white/10">
+              <span class="text-sm font-extrabold text-white">Dine in</span>
+              <span class="mt-0.5 text-[11px] font-semibold text-slate-500">Serve to table</span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div id="co-table-wrap" class="relative hidden">
+        <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Table</span>
+        <input type="hidden" id="co-table" value="">
+        <button
+          type="button"
+          id="co-table-trigger"
+          class="flex w-full items-center justify-between gap-3 rounded-2xl bg-ink-950 px-4 py-2.5 text-left text-sm font-bold text-white ring-1 ring-white/10 outline-none transition hover:ring-white/20 focus:ring-2 focus:ring-caramel-500"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+        >
+          <span id="co-table-label" class="truncate text-slate-500">Choose a table</span>
+          <i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-slate-500"></i>
+        </button>
+        <div
+          id="co-table-menu"
+          class="co-table-menu absolute left-0 right-0 z-30 mt-1.5 hidden overflow-y-auto rounded-2xl bg-ink-900 py-1 shadow-xl ring-1 ring-white/10"
+          role="listbox"
+          hidden
+        ></div>
+      </div>
+
+      <div>
+        <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Add items</span>
+        <label class="relative mb-2 block">
+          <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500"></i>
+          <input type="search" id="co-catalog-search" placeholder="Search menu…" class="w-full rounded-xl bg-ink-950 py-2 pl-9 pr-3 text-sm font-bold text-white ring-1 ring-white/10 outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <div id="co-catalog" class="max-h-44 space-y-3 overflow-y-auto rounded-2xl bg-ink-950/80 p-2 ring-1 ring-white/5"></div>
+        <ul id="co-lines" class="mt-3 space-y-2"></ul>
+        <p class="mt-3 text-right text-sm font-extrabold text-white">Total KSh <span id="co-total">0</span></p>
+      </div>
+
+      <fieldset>
+        <legend class="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Payment</legend>
+        <div class="grid gap-2">
+          <label id="co-pay-later-label" class="co-choice is-disabled">
+            <input type="radio" name="co-pay" value="later" disabled>
+            <span class="co-choice-face flex flex-col rounded-2xl bg-ink-950 px-4 py-3 ring-1 ring-white/10">
+              <span class="text-sm font-extrabold text-white">Pay later</span>
+              <span class="mt-0.5 text-[11px] font-semibold text-slate-500">Dine-in only · collect at the table</span>
+            </span>
+          </label>
+          <label class="co-choice cursor-pointer">
+            <input type="radio" name="co-pay" value="cash" checked>
+            <span class="co-choice-face flex flex-col rounded-2xl bg-ink-950 px-4 py-3 ring-1 ring-white/10">
+              <span class="text-sm font-extrabold text-white">Cash now</span>
+              <span class="mt-0.5 text-[11px] font-semibold text-slate-500">Mark paid immediately</span>
+            </span>
+          </label>
+          <label class="co-choice cursor-pointer">
+            <input type="radio" name="co-pay" value="mpesa">
+            <span class="co-choice-face flex flex-col rounded-2xl bg-ink-950 px-4 py-3 ring-1 ring-white/10">
+              <span class="text-sm font-extrabold text-white">M-Pesa now</span>
+              <span class="mt-0.5 text-[11px] font-semibold text-slate-500">STK prompt on phone</span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+      <div id="co-cash-wrap">
+        <label class="block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Cash received</span>
+          <input type="number" id="co-cash" min="0" step="1" inputmode="numeric" placeholder="0" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <div class="mt-2 flex items-center justify-between gap-3">
+          <button type="button" id="co-cash-exact" class="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-300 hover:bg-white/5">Exact</button>
+          <p id="co-change" class="text-sm font-extrabold text-caramel-300">Change KSh 0</p>
+        </div>
+      </div>
+      <p id="co-error" class="hidden text-sm font-bold text-red-300" role="alert"></p>
+    </div>
+    <div class="flex shrink-0 gap-2 border-t border-white/5 px-4 py-3.5 sm:px-5 sm:py-4" style="padding-bottom: max(0.875rem, env(safe-area-inset-bottom, 0px));">
+      <button type="button" data-close-new-order class="flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Cancel</button>
+      <button type="button" id="co-submit" class="flex-[1.4] rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500">Create · cash</button>
+    </div>
+  </aside>
+</div>
+{% endif %}
+
+{# Collect payment #}
+<div id="collect-modal" class="fixed inset-0 z-[120] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-collect-cancel></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="ops-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 pt-5 sm:px-5">
+        <h2 class="font-display text-xl font-semibold text-white">Collect payment</h2>
+        <p class="mt-1 text-sm font-semibold text-slate-400">
+          <span id="collect-code" class="font-mono font-extrabold text-white">—</span>
+          · KSh <span id="collect-amount">0</span>
+        </p>
+        <label class="mt-4 block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Cash received</span>
+          <input type="number" id="collect-cash" min="0" step="1" inputmode="numeric" placeholder="0" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <div class="mt-2 flex items-center justify-between gap-3">
+          <button type="button" id="collect-cash-exact" class="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-slate-300 hover:bg-white/5">Exact</button>
+          <p id="collect-change" class="text-sm font-extrabold text-caramel-300">Change KSh 0</p>
+        </div>
+        <label class="mt-4 block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">M-Pesa phone</span>
+          <input type="tel" id="collect-phone" placeholder="07XXXXXXXX" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <p id="collect-error" class="mt-2 hidden text-sm font-bold text-red-300"></p>
+      </div>
+      <div class="mt-5 flex flex-col gap-2 border-t border-white/5 px-4 py-4 sm:flex-row sm:px-5" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-collect-cancel class="min-h-11 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5 sm:flex-1">Cancel</button>
+        <button type="button" id="collect-cash-btn" class="min-h-11 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-white hover:bg-white/5 sm:flex-1">Cash</button>
+        <button type="button" id="collect-mpesa-btn" class="min-h-11 rounded-full bg-caramel-600 py-2.5 text-sm font-extrabold text-white hover:bg-caramel-500 sm:flex-1">M-Pesa</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Cancel confirm #}
+<div id="cancel-modal" class="fixed inset-0 z-[120] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-cancel-dismiss></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="ops-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 pt-5 sm:px-5">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/15 text-rose-300">
+          <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+        </div>
+        <h2 class="mt-3 font-display text-xl font-semibold text-white">Cancel order?</h2>
+        <p class="mt-2 text-sm font-semibold text-slate-400">
+          <span id="cancel-code" class="font-mono font-extrabold text-white">—</span> will leave the live queue.
+        </p>
+        <label class="mt-4 block">
+          <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Reason <span class="normal-case text-slate-600">(optional)</span></span>
+          <input type="text" id="cancel-reason" placeholder="Customer left, wrong order…" class="w-full rounded-2xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+      </div>
+      <div class="mt-5 flex gap-2 border-t border-white/5 px-4 py-4 sm:px-5" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-cancel-dismiss class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Keep</button>
+        <button type="button" id="cancel-confirm-btn" class="min-h-11 flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-extrabold text-white hover:bg-rose-500">Cancel order</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Discard new order #}
+{% if 'ops.create_order' in perms %}
+<div id="discard-order-modal" class="fixed inset-0 z-[130] hidden" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-discard-keep></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4">
+    <div class="ops-modal-panel flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 pt-5 sm:px-5">
+        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-300">
+          <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+        </div>
+        <h2 class="mt-3 font-display text-xl font-semibold text-white">Discard this order?</h2>
+        <p class="mt-2 text-sm font-semibold leading-relaxed text-slate-400">
+          You’ve started filling in a new order. Closing now will clear the items and details.
+        </p>
+      </div>
+      <div class="mt-5 flex gap-2 border-t border-white/5 px-4 py-4 sm:px-5" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));">
+        <button type="button" data-discard-keep class="min-h-11 flex-1 rounded-full border border-white/10 py-2.5 text-sm font-extrabold text-slate-300 hover:bg-white/5">Keep editing</button>
+        <button type="button" id="discard-order-confirm" class="min-h-11 flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-extrabold text-white hover:bg-rose-500">Discard</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const LIVE_URL = '{% url "kahawa:staff_live_orders" %}';
+    const STATUS_URL = (id) => `{% url "kahawa:staff_update_status" order_id=0 %}`.replace('/0/', `/${id}/`);
+    const COLLECT_URL = (id) => `{% url "kahawa:staff_collect_payment" order_id=0 %}`.replace('/0/', `/${id}/`);
+    const CREATE_URL = '{% url "kahawa:staff_create_order" %}';
+    const RECEIPT_URL = (code) => `{% url "kahawa:order_receipt" order_code="ORDERCODE" %}`.replace('ORDERCODE', encodeURIComponent(code));
+    const KITCHEN_URL = (code) => `{% url "kahawa:kitchen_ticket" order_code="ORDERCODE" %}`.replace('ORDERCODE', encodeURIComponent(code));
+    const CSRF = '{{ csrf_token }}';
+    const POLL_MS = 10000;
+    const PRODUCTS = {{ counter_products_json|default:"[]"|safe }};
+    const PACKAGES = {{ counter_packages_json|default:"[]"|safe }};
+    const TABLES = {{ counter_tables_json|default:"[]"|safe }};
+    const PHONE_RE = /^(?:0[17]\d{8}|\+?254[17]\d{8})$/;
+
+    let counterTotal = 0;
+    let collectTotal = 0;
+    let knownPendingIds = new Set();
+    let knownPaidIds = new Set();
+    let firstLoad = true;
+    let lastPayload = null;
+    let activeOrderId = null;
+    let collectOrderId = null;
+    let cancelOrderId = null;
+    const counterLines = new Map();
+    const filters = { unpaid: false, pickup: false, dine_in: false, delivery: false, counter: false };
+    let statusTab = 'active';
+    const STATUS_RANK = { PENDING: 0, PREPARING: 1, READY: 2, COMPLETED: 3 };
+
+    const orderDrawer = document.getElementById('drawer-order');
+    const newOrderDrawer = document.getElementById('drawer-new-order');
+    const collectModal = document.getElementById('collect-modal');
+    const cancelModal = document.getElementById('cancel-modal');
+    const discardModal = document.getElementById('discard-order-modal');
+
+    function toast(msg, level) {
+      if (window.showToast) showToast(msg, level || 'info');
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function money(n) {
+      return Math.round(Number(n) || 0).toLocaleString('en-KE');
+    }
+
+    function openDrawer(el) {
+      if (!el) return;
+      el.classList.remove('hidden');
+      el.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      requestAnimationFrame(() => {
+        el.classList.add('is-open');
+        if (window.lucide) window.lucide.createIcons();
+      });
+    }
+
+    function closeDrawer(el) {
+      if (!el || el.classList.contains('hidden')) return;
+      el.classList.remove('is-open');
+      el.setAttribute('aria-hidden', 'true');
+      setTimeout(() => {
+        el.classList.add('hidden');
+        const any =
+          orderDrawer?.classList.contains('is-open') ||
+          newOrderDrawer?.classList.contains('is-open') ||
+          (collectModal && !collectModal.classList.contains('hidden')) ||
+          (cancelModal && !cancelModal.classList.contains('hidden'));
+        if (!any) document.body.classList.remove('overflow-hidden');
+      }, 280);
+    }
+
+    function allOrders(payload) {
+      const cols = payload?.columns || {};
+      return ['PENDING', 'PREPARING', 'READY', 'COMPLETED'].flatMap((key) => cols[key] || []);
+    }
+
+    function orderMatchesFilters(order) {
+      const q = (document.getElementById('ops-search')?.value || '').trim().toLowerCase();
+      if (q) {
+        const hay = [
+          order.order_code,
+          order.customer_name,
+          order.phone,
+          order.table_code,
+          order.table_label,
+          order.delivery_location,
+        ].join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (filters.unpaid && !order.is_unpaid) return false;
+      const typeOn = [];
+      if (filters.pickup) typeOn.push('PICKUP');
+      if (filters.dine_in) typeOn.push('DINE_IN');
+      if (filters.delivery) typeOn.push('DELIVERY');
+      if (typeOn.length && !typeOn.includes(order.order_type)) return false;
+      if (filters.counter && order.source !== 'COUNTER') return false;
+      if (statusTab === 'active') {
+        if (order.status === 'COMPLETED' && !order.is_unpaid) return false;
+      } else if (statusTab !== 'all' && order.status !== statusTab) {
+        return false;
+      }
+      return true;
+    }
+
+    function sortOrders(list) {
+      return list.slice().sort((a, b) => {
+        if (!!b.is_unpaid !== !!a.is_unpaid) return a.is_unpaid ? -1 : 1;
+        const ra = STATUS_RANK[a.status] ?? 9;
+        const rb = STATUS_RANK[b.status] ?? 9;
+        if (ra !== rb) return ra - rb;
+        return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+      });
+    }
+
+    function typeLabel(order) {
+      if (order.order_type === 'DELIVERY') return 'Delivery';
+      if (order.order_type === 'DINE_IN') return 'Dine in';
+      return 'Pickup';
+    }
+
+    function statusTag(status) {
+      return {
+        PENDING: 'is-amber',
+        PREPARING: 'is-sky',
+        READY: 'is-violet',
+        COMPLETED: 'is-emerald',
+        CANCELLED: 'is-slate',
+      }[status] || 'is-slate';
+    }
+
+    function typeBadge(order) {
+      if (order.order_type === 'DELIVERY') return `<span class="manage-tag is-violet">Delivery</span>`;
+      if (order.order_type === 'DINE_IN') return `<span class="manage-tag is-emerald">Dine in</span>`;
+      return `<span class="manage-tag is-caramel">Pickup</span>`;
+    }
+
+    function payBadge(order) {
+      if (order.is_unpaid) return `<span class="manage-tag is-amber">Unpaid</span>`;
+      if (order.payment_status === 'PAID') return `<span class="manage-tag is-emerald">Paid</span>`;
+      return `<span class="manage-tag is-slate">${escapeHtml(order.payment_label)}</span>`;
+    }
+
+    function statusTone(status) {
+      return {
+        PENDING: 'text-amber-300',
+        PREPARING: 'text-sky-300',
+        READY: 'text-violet-300',
+        COMPLETED: 'text-emerald-300',
+      }[status] || 'text-slate-400';
+    }
+
+    function itemSummary(order) {
+      const items = order.items || [];
+      if (!items.length) return 'No items';
+      const head = items.slice(0, 2).map((i) => `${i.quantity}× ${i.name}`).join(', ');
+      const more = items.length > 2 ? ` +${items.length - 2}` : '';
+      return head + more;
+    }
+
+    function orderMeta(order) {
+      const bits = [typeLabel(order)];
+      if (order.table_code) bits.push(`Table ${order.table_code}`);
+      else if (order.delivery_location) bits.push(order.delivery_location);
+      if (order.is_unpaid) bits.push('Unpaid');
+      if (order.created_display) bits.push(order.created_display);
+      return bits.join(' · ');
+    }
+
+    function openSlip(url, autoprint) {
+      const win = window.open(url + (autoprint ? '?print=1' : ''), '_blank', 'noopener,width=420,height=760');
+      if (!win) toast('Allow pop-ups to print', 'error');
+      return !!win;
+    }
+
+    function openReceipt(code, autoprint) {
+      if (code) openSlip(RECEIPT_URL(code), autoprint);
+    }
+
+    function openKitchen(code, autoprint) {
+      if (code) openSlip(KITCHEN_URL(code), autoprint);
+    }
+
+    function primaryAction(order) {
+      if (order.next_status && order.next_label) {
+        const short = { PREPARING: 'Prepare', READY: 'Ready', COMPLETED: 'Done' }[order.next_status] || order.next_label;
+        return `<button type="button" class="js-advance min-h-10 w-full rounded-full bg-caramel-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-caramel-500 lg:min-h-0 lg:w-auto" data-id="${order.id}" data-status="${order.next_status}">${escapeHtml(short)}</button>`;
+      }
+      if (order.can_collect) {
+        return `<button type="button" class="js-collect min-h-10 w-full rounded-full border border-caramel-500/40 px-3 py-2 text-xs font-extrabold text-caramel-300 hover:bg-caramel-500/10 lg:min-h-0 lg:w-auto" data-id="${order.id}">Collect</button>`;
+      }
+      return `<button type="button" class="js-open-order inline-flex min-h-10 w-full items-center justify-center gap-1 rounded-full bg-white/5 px-3 py-2 text-xs font-extrabold text-slate-300 hover:bg-white/10 lg:min-h-0 lg:w-auto" data-order-id="${order.id}">Details <i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>`;
+    }
+
+    function orderRow(order) {
+      return `
+        <li class="ops-order-row group relative px-3 py-3.5 transition hover:bg-white/[0.025] sm:px-4 lg:px-5 ${order.is_unpaid ? 'before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-amber-400/70' : ''}">
+          <div class="flex min-w-0 flex-col gap-2.5 lg:contents">
+            <button type="button" class="js-open-order min-w-0 text-left" data-order-id="${order.id}">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <p class="font-mono text-sm font-extrabold text-white transition group-hover:text-caramel-400">${escapeHtml(order.order_code)}</p>
+                    <p class="truncate text-sm font-semibold text-slate-400">${escapeHtml(order.customer_name)}</p>
+                  </div>
+                  <p class="mt-1 truncate text-[11px] font-semibold text-slate-500">${escapeHtml(orderMeta(order))}</p>
+                  <p class="mt-0.5 truncate text-[11px] font-medium text-slate-600 lg:block">${escapeHtml(itemSummary(order))}</p>
+                </div>
+                <div class="shrink-0 text-right lg:hidden">
+                  <p class="text-[11px] font-extrabold uppercase tracking-wide ${statusTone(order.status)}">${escapeHtml(order.status_label || order.status)}</p>
+                  <p class="mt-1 text-sm font-extrabold text-white">KSh ${money(order.total_amount)}</p>
+                </div>
+              </div>
+            </button>
+            <div class="hidden text-center lg:block">
+              <p class="text-xs font-extrabold uppercase tracking-wide ${statusTone(order.status)}">${escapeHtml(order.status_label || order.status)}</p>
+            </div>
+            <p class="hidden text-right text-sm font-extrabold text-slate-200 lg:block">KSh ${money(order.total_amount)}</p>
+            <div class="ops-order-actions flex items-center justify-end gap-2">
+              <button type="button" class="js-kitchen-ticket inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-white/5 hover:text-white" data-code="${escapeHtml(order.order_code)}" title="Kitchen ticket" aria-label="Kitchen ticket">
+                <i data-lucide="chef-hat" class="h-4 w-4"></i>
+              </button>
+              <button type="button" class="js-print-receipt inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-white/5 hover:text-white" data-code="${escapeHtml(order.order_code)}" title="Print receipt" aria-label="Print receipt">
+                <i data-lucide="printer" class="h-4 w-4"></i>
+              </button>
+              ${primaryAction(order)}
+            </div>
+          </div>
+        </li>
+      `;
+    }
+
+    function findOrder(id) {
+      return allOrders(lastPayload).find((o) => String(o.id) === String(id)) || null;
+    }
+
+    function fillOrderDrawer(order) {
+      activeOrderId = order.id;
+      document.getElementById('order-drawer-title').textContent = order.order_code;
+      const items = (order.items || []).map((item) => `
+        <li class="rounded-xl bg-ink-950/80 px-3 py-2.5 ring-1 ring-white/5">
+          <div class="flex justify-between gap-2">
+            <p class="text-sm font-extrabold text-white">${item.quantity}× ${escapeHtml(item.name)}</p>
+            <p class="text-sm font-bold text-slate-300">KSh ${money(item.line_total)}</p>
+          </div>
+          ${item.customization ? `<p class="mt-0.5 text-xs font-semibold text-slate-500">${escapeHtml(item.customization)}</p>` : ''}
+        </li>
+      `).join('');
+
+      document.getElementById('order-drawer-body').innerHTML = `
+        <div class="flex flex-wrap gap-1.5">
+          <span class="manage-tag ${statusTag(order.status)}">${escapeHtml(order.status_label || order.status)}</span>
+          ${typeBadge(order)} ${payBadge(order)}
+          ${order.source === 'COUNTER' ? '<span class="manage-tag is-sky">Counter</span>' : ''}
+        </div>
+        <dl class="mt-5 space-y-3 text-sm">
+          <div class="flex justify-between gap-3"><dt class="font-semibold text-slate-500">Customer</dt><dd class="font-bold text-slate-200">${escapeHtml(order.customer_name)}</dd></div>
+          <div class="flex justify-between gap-3"><dt class="font-semibold text-slate-500">Phone</dt><dd class="font-bold text-slate-200">${escapeHtml(order.phone || '—')}</dd></div>
+          <div class="flex justify-between gap-3"><dt class="font-semibold text-slate-500">When</dt><dd class="font-bold text-slate-200">${escapeHtml(order.created_full || '')}</dd></div>
+          ${order.table_code ? `<div class="flex justify-between gap-3"><dt class="font-semibold text-slate-500">Table</dt><dd class="font-bold text-slate-200">${escapeHtml(order.table_code)}${order.table_label ? ' · ' + escapeHtml(order.table_label) : ''}</dd></div>` : ''}
+          ${order.delivery_location ? `<div class="flex justify-between gap-3"><dt class="font-semibold text-slate-500">Delivery</dt><dd class="max-w-[60%] text-right font-bold text-slate-200">${escapeHtml(order.delivery_location)}</dd></div>` : ''}
+          <div class="flex justify-between gap-3"><dt class="font-semibold text-slate-500">Total</dt><dd class="font-extrabold text-caramel-400">KSh ${money(order.total_amount)}</dd></div>
+          ${order.cash_tendered ? `<div class="flex justify-between gap-3"><dt class="font-semibold text-slate-500">Cash</dt><dd class="font-bold text-slate-200">KSh ${money(order.cash_tendered)}</dd></div><div class="flex justify-between gap-3"><dt class="font-semibold text-slate-500">Change</dt><dd class="font-extrabold text-white">KSh ${money(order.cash_change)}</dd></div>` : ''}
+        </dl>
+        <h3 class="mt-6 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Items</h3>
+        <ul class="mt-2 space-y-2">${items || '<li class="text-sm text-slate-500">No items</li>'}</ul>
+      `;
+
+      const tools = [
+        `<button type="button" class="order-drawer-icon js-kitchen-ticket" data-code="${escapeHtml(order.order_code)}" title="Kitchen ticket" aria-label="Kitchen ticket"><i data-lucide="chef-hat" class="h-4 w-4"></i></button>`,
+        `<button type="button" class="order-drawer-icon js-print-receipt" data-code="${escapeHtml(order.order_code)}" title="Print receipt" aria-label="Print receipt"><i data-lucide="printer" class="h-4 w-4"></i></button>`,
+      ];
+      if (order.can_cancel) {
+        tools.push(`<button type="button" class="order-drawer-icon is-danger js-cancel" data-id="${order.id}" title="Cancel order" aria-label="Cancel order"><i data-lucide="ban" class="h-4 w-4"></i></button>`);
+      }
+      const primary = [];
+      const hasAdvance = !!(order.next_status && order.next_label);
+      if (order.can_collect) {
+        primary.push(`<button type="button" class="order-drawer-btn ${hasAdvance ? 'is-quiet' : 'is-main'} js-collect" data-id="${order.id}">Collect</button>`);
+      }
+      if (hasAdvance) {
+        const short = { PREPARING: 'Prepare', READY: 'Ready', COMPLETED: 'Done' }[order.next_status] || order.next_label;
+        primary.push(`<button type="button" class="order-drawer-btn is-main js-advance" data-id="${order.id}" data-status="${order.next_status}">${escapeHtml(short)}</button>`);
+      }
+      document.getElementById('order-drawer-actions').innerHTML =
+        `<div class="order-drawer-tools">${tools.join('')}</div>` +
+        (primary.length ? `<div class="order-drawer-primary">${primary.join('')}</div>` : '');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function openOrder(order) {
+      closeDrawer(newOrderDrawer);
+      fillOrderDrawer(order);
+      openDrawer(orderDrawer);
+    }
+
+    function renderBoard(payload) {
+      lastPayload = payload;
+      const cols = payload.columns || {};
+      ['PENDING', 'PREPARING', 'READY', 'COMPLETED'].forEach((key) => {
+        const count = String((cols[key] || []).length);
+        document.querySelectorAll(`[data-tab-count="${key}"]`).forEach((el) => {
+          el.textContent = count;
+        });
+      });
+
+      const list = sortOrders(allOrders(payload).filter(orderMatchesFilters));
+      const host = document.getElementById('ops-order-list');
+      if (host) {
+        host.innerHTML = list.length
+          ? list.map(orderRow).join('')
+          : `<li class="px-5 py-14 text-center">
+              <p class="font-display text-lg text-slate-300">No orders here</p>
+              <p class="mt-1 text-sm font-semibold text-slate-500">Try another status tab or clear filters.</p>
+            </li>`;
+      }
+
+      const a = payload.analytics || {};
+      const rev = document.getElementById('stat-revenue');
+      const tot = document.getElementById('stat-total');
+      const pen = document.getElementById('stat-pending');
+      const prep = document.getElementById('stat-preparing');
+      const ready = document.getElementById('stat-ready');
+      if (rev) rev.textContent = a.revenue_display || money(a.revenue);
+      if (tot) tot.textContent = a.total_orders ?? 0;
+      if (pen) pen.textContent = a.pending ?? 0;
+      if (prep) prep.textContent = a.preparing ?? 0;
+      if (ready) ready.textContent = a.ready ?? 0;
+
+      const stamp = document.getElementById('last-refresh');
+      if (stamp) {
+        const t = payload.server_time ? new Date(payload.server_time) : new Date();
+        stamp.textContent = `Synced ${t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+      }
+
+      if (activeOrderId && orderDrawer?.classList.contains('is-open')) {
+        const fresh = findOrder(activeOrderId);
+        if (fresh) fillOrderDrawer(fresh);
+      }
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function detectNewAlerts(payload) {
+      const pendingIds = new Set(payload.pending_ids || []);
+      const paidIds = new Set(payload.paid_ids || []);
+      if (!firstLoad) {
+        let hasNew = false;
+        pendingIds.forEach((id) => { if (!knownPendingIds.has(id)) hasNew = true; });
+        paidIds.forEach((id) => { if (!knownPaidIds.has(id)) hasNew = true; });
+        if (hasNew) playNewOrderBeep();
+      }
+      knownPendingIds = pendingIds;
+      knownPaidIds = paidIds;
+      firstLoad = false;
+    }
+
+    function playNewOrderBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.frequency.value = 880;
+        g.gain.value = 0.05;
+        o.start();
+        setTimeout(() => { o.stop(); ctx.close(); }, 180);
+      } catch (_) {}
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch(LIVE_URL, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        if (!res.ok) throw new Error('poll failed');
+        const data = await res.json();
+        detectNewAlerts(data);
+        renderBoard(data);
+        document.getElementById('live-indicator')?.classList.remove('opacity-40');
+      } catch (_) {
+        document.getElementById('live-indicator')?.classList.add('opacity-40');
+      }
+    }
+
+    async function advanceStatus(orderId, status, extra) {
+      const res = await fetch(STATUS_URL(orderId), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-CSRFToken': CSRF,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ status, ...(extra || {}) }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        toast(data.error || 'Could not update order', 'error');
+        return false;
+      }
+      detectNewAlerts(data);
+      renderBoard(data);
+      if (status === 'CANCELLED') toast('Order cancelled', 'success');
+      else toast('Order updated', 'success');
+      return true;
+    }
+
+    function openCollect(order) {
+      collectOrderId = order.id;
+      document.getElementById('collect-code').textContent = order.order_code;
+      collectTotal = Number(order.total_amount) || 0;
+      document.getElementById('collect-amount').textContent = money(order.total_amount);
+      const cashInput = document.getElementById('collect-cash');
+      if (cashInput) cashInput.value = '';
+      updateCollectChange();
+      document.getElementById('collect-phone').value = order.phone || '';
+      document.getElementById('collect-error').classList.add('hidden');
+      collectModal.classList.remove('hidden');
+      collectModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function closeCollect() {
+      collectOrderId = null;
+      collectModal.classList.add('hidden');
+      collectModal.setAttribute('aria-hidden', 'true');
+      if (!orderDrawer?.classList.contains('is-open') && !newOrderDrawer?.classList.contains('is-open') && cancelModal.classList.contains('hidden')) {
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    async function submitCollect(method) {
+      const err = document.getElementById('collect-error');
+      err.classList.add('hidden');
+      const phone = (document.getElementById('collect-phone').value || '').trim().replace(/\s+/g, '');
+      const cashReceived = document.getElementById('collect-cash')?.value || '';
+      if (method === 'cash' && Number(cashReceived) < collectTotal) {
+        err.textContent = 'Cash received is less than the total.';
+        err.classList.remove('hidden');
+        return;
+      }
+      if (method === 'mpesa' && !PHONE_RE.test(phone)) {
+        err.textContent = 'Enter a valid Kenyan phone for M-Pesa.';
+        err.classList.remove('hidden');
+        return;
+      }
+      const res = await fetch(COLLECT_URL(collectOrderId), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-CSRFToken': CSRF,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ method, phone, cash_received: cashReceived }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        err.textContent = data.error || 'Could not collect payment';
+        err.classList.remove('hidden');
+        return;
+      }
+      const paidOrder = method === 'cash' ? findOrder(collectOrderId) : null;
+      closeCollect();
+      if (paidOrder) {
+        const change = Number(data.cash_change);
+        toast(change > 0 ? `Paid · change KSh ${money(change)}` : 'Paid · no change', 'success');
+        openReceipt(paidOrder.order_code, true);
+      } else {
+        toast(data.message || 'STK prompt sent', 'info');
+      }
+      detectNewAlerts(data);
+      renderBoard(data);
+    }
+
+    function openCancel(order) {
+      cancelOrderId = order.id;
+      document.getElementById('cancel-code').textContent = order.order_code;
+      document.getElementById('cancel-reason').value = '';
+      cancelModal.classList.remove('hidden');
+      cancelModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeCancel() {
+      cancelOrderId = null;
+      cancelModal.classList.add('hidden');
+      cancelModal.setAttribute('aria-hidden', 'true');
+      if (!orderDrawer?.classList.contains('is-open') && !newOrderDrawer?.classList.contains('is-open') && collectModal.classList.contains('hidden')) {
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    // Board / drawer clicks
+    document.getElementById('ops-board')?.addEventListener('click', async (e) => {
+      const printBtn = e.target.closest('.js-print-receipt');
+      if (printBtn) {
+        e.preventDefault();
+        openReceipt(printBtn.dataset.code, true);
+        return;
+      }
+      const kitchenBtn = e.target.closest('.js-kitchen-ticket');
+      if (kitchenBtn) {
+        e.preventDefault();
+        openKitchen(kitchenBtn.dataset.code, true);
+        return;
+      }
+      const advanceBtn = e.target.closest('.js-advance');
+      if (advanceBtn) {
+        e.preventDefault();
+        advanceBtn.disabled = true;
+        await advanceStatus(advanceBtn.dataset.id, advanceBtn.dataset.status);
+        return;
+      }
+      const collectBtn = e.target.closest('.js-collect');
+      if (collectBtn) {
+        e.preventDefault();
+        const order = findOrder(collectBtn.dataset.id);
+        if (order) openCollect(order);
+        return;
+      }
+      const openBtn = e.target.closest('.js-open-order');
+      if (!openBtn) return;
+      const order = findOrder(openBtn.dataset.orderId);
+      if (order) openOrder(order);
+    });
+
+    document.getElementById('order-drawer-actions')?.addEventListener('click', async (e) => {
+      const printBtn = e.target.closest('.js-print-receipt');
+      if (printBtn) {
+        openReceipt(printBtn.dataset.code, true);
+        return;
+      }
+      const kitchenBtn = e.target.closest('.js-kitchen-ticket');
+      if (kitchenBtn) {
+        openKitchen(kitchenBtn.dataset.code, true);
+        return;
+      }
+      if (e.target.closest('[data-close-order]')) {
+        closeDrawer(orderDrawer);
+        return;
+      }
+      const cancelBtn = e.target.closest('.js-cancel');
+      if (cancelBtn) {
+        const order = findOrder(cancelBtn.dataset.id);
+        if (order) openCancel(order);
+        return;
+      }
+      const collectBtn = e.target.closest('.js-collect');
+      if (collectBtn) {
+        const order = findOrder(collectBtn.dataset.id);
+        if (order) openCollect(order);
+        return;
+      }
+      const adv = e.target.closest('.js-advance');
+      if (!adv) return;
+      adv.disabled = true;
+      await advanceStatus(adv.dataset.id, adv.dataset.status);
+      adv.disabled = false;
+    });
+
+    document.querySelectorAll('[data-close-order]').forEach((el) => {
+      el.addEventListener('click', () => closeDrawer(orderDrawer));
+    });
+
+    document.querySelectorAll('[data-collect-cancel]').forEach((el) => {
+      el.addEventListener('click', closeCollect);
+    });
+    document.getElementById('collect-cash-btn')?.addEventListener('click', () => submitCollect('cash'));
+    document.getElementById('collect-mpesa-btn')?.addEventListener('click', () => submitCollect('mpesa'));
+
+    document.querySelectorAll('[data-cancel-dismiss]').forEach((el) => {
+      el.addEventListener('click', closeCancel);
+    });
+    document.getElementById('cancel-confirm-btn')?.addEventListener('click', async () => {
+      if (!cancelOrderId) return;
+      const reason = document.getElementById('cancel-reason').value || '';
+      const ok = await advanceStatus(cancelOrderId, 'CANCELLED', {
+        cancel_reason: reason,
+        notify_sms: true,
+      });
+      if (ok) {
+        closeCancel();
+        closeDrawer(orderDrawer);
+      }
+    });
+
+    // Filters
+    document.getElementById('ops-search')?.addEventListener('input', () => {
+      if (lastPayload) renderBoard(lastPayload);
+    });
+    document.querySelectorAll('.ops-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const key = chip.dataset.filter;
+        filters[key] = !filters[key];
+        chip.classList.toggle('is-on', filters[key]);
+        chip.setAttribute('aria-pressed', String(filters[key]));
+        if (lastPayload) renderBoard(lastPayload);
+      });
+    });
+    document.querySelectorAll('.ops-status-tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        statusTab = tab.dataset.statusTab || 'active';
+        document.querySelectorAll('.ops-status-tab').forEach((t) => {
+          const on = t === tab;
+          t.classList.toggle('is-on', on);
+          t.setAttribute('aria-pressed', String(on));
+        });
+        if (lastPayload) renderBoard(lastPayload);
+      });
+    });
+    function selectStatusTab(value) {
+      const tab = document.querySelector(`.ops-status-tab[data-status-tab="${value}"]`);
+      if (tab) tab.click();
+    }
+    document.querySelectorAll('.js-stat-tab').forEach((el) => {
+      el.addEventListener('click', () => selectStatusTab(el.dataset.jumpStatus));
+    });
+
+    // —— New order ——
+    function syncPayLaterAvailability() {
+      const dine = document.querySelector('input[name="co-type"]:checked')?.value === 'DINE_IN';
+      const later = document.querySelector('input[name="co-pay"][value="later"]');
+      const laterLabel = document.getElementById('co-pay-later-label');
+      const cash = document.querySelector('input[name="co-pay"][value="cash"]');
+      if (!later) return;
+      later.disabled = !dine;
+      if (laterLabel) laterLabel.classList.toggle('is-disabled', !dine);
+      if (!dine && later.checked && cash) cash.checked = true;
+      syncSubmitLabel();
+    }
+
+    function syncSubmitLabel() {
+      const mode = document.querySelector('input[name="co-pay"]:checked')?.value || 'cash';
+      const btn = document.getElementById('co-submit');
+      document.getElementById('co-cash-wrap')?.classList.toggle('hidden', mode !== 'cash');
+      if (!btn) return;
+      if (mode === 'cash') btn.textContent = 'Create · cash';
+      else if (mode === 'mpesa') btn.textContent = 'Create · M-Pesa';
+      else btn.textContent = 'Create · pay later';
+      updateCashChange();
+    }
+
+    function updateCashChange() {
+      const received = Number(document.getElementById('co-cash')?.value);
+      const el = document.getElementById('co-change');
+      if (!el) return;
+      if (!document.getElementById('co-cash')?.value) {
+        el.textContent = 'Enter cash received';
+        return;
+      }
+      const change = received - counterTotal;
+      el.textContent = change < 0 ? `Short KSh ${money(Math.abs(change))}` : `Change KSh ${money(change)}`;
+    }
+
+    function updateCollectChange() {
+      const received = Number(document.getElementById('collect-cash')?.value);
+      const el = document.getElementById('collect-change');
+      if (!el) return;
+      if (!document.getElementById('collect-cash')?.value) {
+        el.textContent = 'Enter cash received';
+        return;
+      }
+      const change = received - collectTotal;
+      el.textContent = change < 0 ? `Short KSh ${money(Math.abs(change))}` : `Change KSh ${money(change)}`;
+    }
+
+    function closeTableMenu() {
+      const menu = document.getElementById('co-table-menu');
+      const trigger = document.getElementById('co-table-trigger');
+      if (!menu || !trigger) return;
+      menu.classList.add('hidden');
+      menu.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    function openTableMenu() {
+      const menu = document.getElementById('co-table-menu');
+      const trigger = document.getElementById('co-table-trigger');
+      if (!menu || !trigger) return;
+      menu.classList.remove('hidden');
+      menu.hidden = false;
+      trigger.setAttribute('aria-expanded', 'true');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function setSelectedTable(code, labelText) {
+      const hidden = document.getElementById('co-table');
+      const label = document.getElementById('co-table-label');
+      if (hidden) hidden.value = code || '';
+      if (label) {
+        if (code) {
+          label.textContent = labelText || code;
+          label.classList.remove('text-slate-500');
+          label.classList.add('text-white');
+        } else {
+          label.textContent = 'Choose a table';
+          label.classList.add('text-slate-500');
+          label.classList.remove('text-white');
+        }
+      }
+      document.querySelectorAll('#co-table-menu [role="option"]').forEach((opt) => {
+        const on = opt.dataset.code === code;
+        opt.setAttribute('aria-selected', String(on));
+        opt.classList.toggle('bg-caramel-600/20', on);
+        opt.classList.toggle('text-caramel-300', on);
+      });
+    }
+
+    function fillTables() {
+      const menu = document.getElementById('co-table-menu');
+      if (!menu) return;
+      if (!TABLES.length) {
+        menu.innerHTML = '<p class="px-4 py-3 text-xs font-semibold text-slate-500">No active tables</p>';
+        setSelectedTable('', '');
+        return;
+      }
+      menu.innerHTML = TABLES.map((t) => `
+        <button
+          type="button"
+          role="option"
+          class="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-200 hover:bg-white/5"
+          data-code="${escapeHtml(t.code)}"
+          aria-selected="false"
+        >
+          <span class="font-mono text-white">${escapeHtml(t.code)}</span>
+          <span class="truncate text-xs font-semibold text-slate-500">${escapeHtml(t.label)}</span>
+        </button>
+      `).join('');
+      setSelectedTable('', '');
+    }
+
+    function openNewOrder() {
+      closeDrawer(orderDrawer);
+      openDrawer(newOrderDrawer);
+    }
+
+    function newOrderIsDirty() {
+      if (counterLines.size) return true;
+      if ((document.getElementById('co-name')?.value || '').trim()) return true;
+      if ((document.getElementById('co-phone')?.value || '').trim()) return true;
+      if (document.querySelector('input[name="co-type"]:checked')?.value === 'DINE_IN') return true;
+      if (document.querySelector('input[name="co-pay"]:checked')?.value !== 'cash') return true;
+      if ((document.getElementById('co-table')?.value || '').trim()) return true;
+      return false;
+    }
+
+    function openDiscardModal() {
+      if (!discardModal) return;
+      closeTableMenu();
+      discardModal.classList.remove('hidden');
+      discardModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeDiscardModal() {
+      if (!discardModal) return;
+      discardModal.classList.add('hidden');
+      discardModal.setAttribute('aria-hidden', 'true');
+      if (!newOrderDrawer?.classList.contains('is-open') && !orderDrawer?.classList.contains('is-open') && collectModal?.classList.contains('hidden') && cancelModal?.classList.contains('hidden')) {
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    function closeNewOrder(force) {
+      if (!force && newOrderIsDirty()) {
+        openDiscardModal();
+        return;
+      }
+      closeDiscardModal();
+      closeTableMenu();
+      closeDrawer(newOrderDrawer);
+    }
+
+    function renderCounterCatalog() {
+      const host = document.getElementById('co-catalog');
+      if (!host) return;
+      const q = (document.getElementById('co-catalog-search')?.value || '').trim().toLowerCase();
+      const groups = {};
+      PRODUCTS.forEach((p) => {
+        const hay = `${p.name} ${p.category}`.toLowerCase();
+        if (q && !hay.includes(q)) return;
+        const cat = p.category || 'Other';
+        (groups[cat] ||= []).push(p);
+      });
+      const cats = Object.keys(groups).sort();
+      const qOffers = (document.getElementById('co-catalog-search')?.value || '').trim().toLowerCase();
+      const offers = PACKAGES.filter((p) => !qOffers || p.name.toLowerCase().includes(qOffers));
+      const offerBlock = offers.length
+        ? `<div>
+            <p class="mb-1 px-1 text-[10px] font-extrabold uppercase tracking-wide text-caramel-400">Offers</p>
+            <div class="space-y-0.5">
+              ${offers.map((p) => `
+                <button type="button" class="js-co-add flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-bold text-slate-300 hover:bg-white/5"
+                  data-id="pkg-${p.id}" data-name="${escapeHtml(p.name)}" data-price="${p.price}">
+                  <span>${escapeHtml(p.name)}</span>
+                  <span class="tabular-nums text-caramel-400">KSh ${money(p.price)}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>`
+        : '';
+      const productHtml = cats.map((cat) => `
+            <div>
+              <p class="mb-1 px-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">${escapeHtml(cat)}</p>
+              <div class="space-y-0.5">
+                ${groups[cat].map((p) => `
+                  <button type="button" class="js-co-add flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-bold text-slate-300 hover:bg-white/5"
+                    data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-price="${p.price}">
+                    <span>${escapeHtml(p.name)}</span>
+                    <span class="tabular-nums text-caramel-400">KSh ${money(p.price)}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          `).join('');
+      host.innerHTML = (offerBlock + productHtml) || '<p class="px-2 py-4 text-center text-xs text-slate-500">No matching products</p>';
+    }
+
+    function renderCounterLines() {
+      const list = document.getElementById('co-lines');
+      const totalEl = document.getElementById('co-total');
+      if (!list || !totalEl) return;
+      let total = 0;
+      const rows = [];
+      counterLines.forEach((line, id) => {
+        total += line.qty * line.price;
+        rows.push(`
+          <li class="flex items-center justify-between gap-2 rounded-xl bg-ink-950/80 px-3 py-2 ring-1 ring-white/5">
+            <span class="min-w-0 text-sm font-bold text-slate-200">${escapeHtml(line.name)}</span>
+            <span class="flex items-center gap-2">
+              <button type="button" class="js-co-dec inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-slate-300 hover:bg-white/10" data-id="${id}">−</button>
+              <span class="w-5 text-center text-sm font-extrabold text-white">${line.qty}</span>
+              <button type="button" class="js-co-inc inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-slate-300 hover:bg-white/10" data-id="${id}">+</button>
+              <span class="w-16 text-right text-xs font-bold tabular-nums text-slate-400">KSh ${money(line.qty * line.price)}</span>
+            </span>
+          </li>
+        `);
+      });
+      list.innerHTML = rows.join('') || '<li class="text-xs font-semibold text-slate-600">Tap products above to add</li>';
+      counterTotal = total;
+      totalEl.textContent = money(total);
+      updateCashChange();
+    }
+
+    document.getElementById('open-new-order')?.addEventListener('click', () => {
+      counterLines.clear();
+      document.getElementById('co-name').value = '';
+      document.getElementById('co-phone').value = '';
+      const cashField = document.getElementById('co-cash');
+      if (cashField) cashField.value = '';
+      document.getElementById('co-catalog-search').value = '';
+      document.getElementById('co-error')?.classList.add('hidden');
+      document.querySelector('input[name="co-type"][value="PICKUP"]').checked = true;
+      document.querySelector('input[name="co-pay"][value="cash"]').checked = true;
+      document.getElementById('co-table-wrap')?.classList.add('hidden');
+      closeTableMenu();
+      syncPayLaterAvailability();
+      renderCounterCatalog();
+      fillTables();
+      renderCounterLines();
+      openNewOrder();
+    });
+
+    document.querySelectorAll('[data-close-new-order]').forEach((el) => {
+      el.addEventListener('click', () => {
+        closeNewOrder(false);
+      });
+    });
+    document.querySelectorAll('[data-discard-keep]').forEach((el) => {
+      el.addEventListener('click', closeDiscardModal);
+    });
+    document.getElementById('discard-order-confirm')?.addEventListener('click', () => {
+      closeNewOrder(true);
+    });
+
+    function withScrollLock(fn) {
+      const scroller = document.querySelector('#drawer-new-order .co-scroll');
+      const top = scroller ? scroller.scrollTop : 0;
+      fn();
+      if (scroller) {
+        requestAnimationFrame(() => { scroller.scrollTop = top; });
+      }
+    }
+
+    document.querySelectorAll('input[name="co-type"]').forEach((el) => {
+      el.addEventListener('change', () => {
+        withScrollLock(() => {
+          const dine = document.querySelector('input[name="co-type"]:checked')?.value === 'DINE_IN';
+          document.getElementById('co-table-wrap')?.classList.toggle('hidden', !dine);
+          if (!dine) {
+            closeTableMenu();
+            setSelectedTable('', '');
+          }
+          syncPayLaterAvailability();
+        });
+      });
+    });
+    document.querySelectorAll('input[name="co-pay"]').forEach((el) => {
+      el.addEventListener('change', () => withScrollLock(syncSubmitLabel));
+    });
+    document.getElementById('co-cash')?.addEventListener('input', updateCashChange);
+    document.getElementById('co-cash-exact')?.addEventListener('click', () => {
+      const field = document.getElementById('co-cash');
+      if (field) field.value = String(Math.round(counterTotal));
+      updateCashChange();
+    });
+    document.getElementById('collect-cash')?.addEventListener('input', updateCollectChange);
+    document.getElementById('collect-cash-exact')?.addEventListener('click', () => {
+      const field = document.getElementById('collect-cash');
+      if (field) field.value = String(Math.round(collectTotal));
+      updateCollectChange();
+    });
+
+    document.getElementById('co-table-trigger')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const menu = document.getElementById('co-table-menu');
+      if (!menu) return;
+      if (menu.hidden) openTableMenu();
+      else closeTableMenu();
+    });
+    document.getElementById('co-table-menu')?.addEventListener('click', (e) => {
+      const opt = e.target.closest('[role="option"]');
+      if (!opt) return;
+      const code = opt.dataset.code || '';
+      const labelText = `${code}${opt.querySelector('.truncate') ? ' · ' + opt.querySelector('.truncate').textContent : ''}`;
+      setSelectedTable(code, labelText.trim());
+      closeTableMenu();
+    });
+    document.addEventListener('click', (e) => {
+      const wrap = document.getElementById('co-table-wrap');
+      if (!wrap || wrap.classList.contains('hidden')) return;
+      if (!wrap.contains(e.target)) closeTableMenu();
+    });
+
+    document.getElementById('co-catalog-search')?.addEventListener('input', renderCounterCatalog);
+
+    document.getElementById('co-catalog')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-co-add');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const existing = counterLines.get(id);
+      if (existing) existing.qty += 1;
+      else counterLines.set(id, { name: btn.dataset.name, price: Number(btn.dataset.price), qty: 1 });
+      renderCounterLines();
+    });
+
+    document.getElementById('co-lines')?.addEventListener('click', (e) => {
+      const dec = e.target.closest('.js-co-dec');
+      const inc = e.target.closest('.js-co-inc');
+      const btn = dec || inc;
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const line = counterLines.get(id);
+      if (!line) return;
+      if (inc) line.qty += 1;
+      else {
+        line.qty -= 1;
+        if (line.qty <= 0) counterLines.delete(id);
+      }
+      renderCounterLines();
+    });
+
+    document.getElementById('co-submit')?.addEventListener('click', async () => {
+      const err = document.getElementById('co-error');
+      err?.classList.add('hidden');
+      if (!counterLines.size) {
+        if (err) { err.textContent = 'Add at least one item.'; err.classList.remove('hidden'); }
+        return;
+      }
+      const orderType = document.querySelector('input[name="co-type"]:checked')?.value || 'PICKUP';
+      const paymentMode = document.querySelector('input[name="co-pay"]:checked')?.value || 'cash';
+      const phone = (document.getElementById('co-phone')?.value || '').trim().replace(/\s+/g, '');
+      if (paymentMode === 'later' && orderType !== 'DINE_IN') {
+        if (err) { err.textContent = 'Pay later is only available for dine-in orders.'; err.classList.remove('hidden'); }
+        return;
+      }
+      if (paymentMode === 'cash' && Number(document.getElementById('co-cash')?.value || '') < counterTotal) {
+        if (err) { err.textContent = 'Enter cash received that covers the total.'; err.classList.remove('hidden'); }
+        return;
+      }
+      if (paymentMode === 'mpesa' && !PHONE_RE.test(phone)) {
+        if (err) { err.textContent = 'Enter a valid Kenyan phone for M-Pesa.'; err.classList.remove('hidden'); }
+        return;
+      }
+      if (orderType === 'DINE_IN' && !document.getElementById('co-table')?.value) {
+        if (err) { err.textContent = 'Choose a table for dine-in.'; err.classList.remove('hidden'); }
+        return;
+      }
+      const items = [];
+      counterLines.forEach((line, id) => {
+        const key = String(id);
+        if (key.startsWith('pkg-')) {
+          items.push({ package_id: Number(key.slice(4)), quantity: line.qty });
+        } else {
+          items.push({ product_id: Number(id), quantity: line.qty });
+        }
+      });
+      const body = {
+        customer_name: document.getElementById('co-name')?.value || '',
+        phone,
+        order_type: orderType,
+        table_code: document.getElementById('co-table')?.value || '',
+        payment_mode: paymentMode,
+        cash_received: document.getElementById('co-cash')?.value || '',
+        items,
+      };
+      const btn = document.getElementById('co-submit');
+      btn.disabled = true;
+      try {
+        const res = await fetch(CREATE_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-CSRFToken': CSRF,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok || data.ok === false) {
+          if (err) { err.textContent = data.error || 'Could not create order'; err.classList.remove('hidden'); }
+          return;
+        }
+        closeNewOrder(true);
+        toast(data.message || `Created ${data.order_code || 'order'}`, 'success');
+        if (data.order_code) {
+          if (paymentMode === 'cash' || paymentMode === 'later') openKitchen(data.order_code, true);
+          if (paymentMode !== 'later') openReceipt(data.order_code, true);
+          if (paymentMode === 'cash') {
+            const change = Number(data.cash_change);
+            toast(change > 0 ? `Change KSh ${money(change)}` : 'No change', 'success');
+          }
+        }
+        detectNewAlerts(data);
+        renderBoard(data);
+      } catch (_) {
+        if (err) { err.textContent = 'Network error'; err.classList.remove('hidden'); }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (discardModal && !discardModal.classList.contains('hidden')) { closeDiscardModal(); return; }
+      if (collectModal && !collectModal.classList.contains('hidden')) { closeCollect(); return; }
+      if (cancelModal && !cancelModal.classList.contains('hidden')) { closeCancel(); return; }
+      if (newOrderDrawer?.classList.contains('is-open')) closeNewOrder(false);
+      else if (orderDrawer?.classList.contains('is-open')) closeDrawer(orderDrawer);
+    });
+
+    try {
+      const initial = JSON.parse(document.getElementById('initial-ops-payload').textContent);
+      detectNewAlerts(initial);
+      renderBoard(initial);
+    } catch (_) {}
+
+    setInterval(refresh, POLL_MS);
+  })();
+</script>
+{% endblock %}

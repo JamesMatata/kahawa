@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Account{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+  <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">Account</h1>
+      <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+        Update your details and password.
+      </p>
+    </div>
+    <button
+      type="button"
+      id="open-password-modal"
+      class="inline-flex items-center gap-2 rounded-full border border-espresso-800/15 bg-cream-50 px-5 py-2.5 text-sm font-extrabold text-espresso-800 transition hover:bg-cream-100"
+    >
+      <i data-lucide="key-round" class="h-4 w-4"></i>
+      Change password
+    </button>
+  </div>
+
+  <div class="rounded-3xl bg-latte/50 px-5 py-4 ring-1 ring-caramel-400/20 sm:px-6">
+    <p class="text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Loyalty points</p>
+    <p class="mt-1 font-display text-2xl font-semibold text-espresso-900">{{ profile.loyalty_points|default:0 }}</p>
+    <p class="mt-1 text-xs font-semibold text-espresso-700/60">Earn 1 pt per KSh 10 paid · 20 pts = KSh 10 off</p>
+  </div>
+
+  {% if error and not password_error %}
+    <p class="mt-6 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-800" role="alert">{{ error }}</p>
+  {% endif %}
+
+  <form method="post" class="mt-6 space-y-4 rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15 sm:p-8">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="details">
+    <h2 class="font-display text-xl font-semibold text-espresso-900">Profile</h2>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block sm:col-span-2">
+        <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Full name</span>
+        <input
+          type="text"
+          name="full_name"
+          value="{{ full_name }}"
+          maxlength="150"
+          class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+        >
+      </label>
+      <label class="block sm:col-span-2">
+        <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Phone</span>
+        <input
+          type="tel"
+          name="phone"
+          value="{{ phone_display }}"
+          required
+          placeholder="07XXXXXXXX"
+          class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+        >
+      </label>
+      <label class="block sm:col-span-2">
+        <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Default delivery location</span>
+        <textarea
+          name="default_location"
+          rows="3"
+          placeholder="Building / landmark within 1 km"
+          class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+        >{{ profile.default_location }}</textarea>
+      </label>
+    </div>
+    <button type="submit" class="flex w-full items-center justify-center rounded-full bg-caramel-600 py-3.5 text-sm font-extrabold text-cream-50 hover:bg-caramel-700 sm:w-auto sm:px-8">
+      Save profile
+    </button>
+  </form>
+</section>
+
+{# Password change modal #}
+<div
+  id="password-modal"
+  class="fixed inset-0 z-[60] {% if not password_error %}hidden{% endif %}"
+  aria-hidden="{% if password_error %}false{% else %}true{% endif %}"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="password-modal-title"
+>
+  <div id="password-modal-backdrop" class="absolute inset-0 bg-espresso-900/55 backdrop-blur-sm"></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+    <div class="flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-cream-50 sm:rounded-3xl">
+      <div class="flex items-center justify-between gap-3 border-b border-caramel-400/15 px-5 py-4">
+        <h2 id="password-modal-title" class="font-display text-xl font-semibold text-espresso-900">Change password</h2>
+        <button type="button" id="password-modal-close" class="inline-flex shrink-0 items-center justify-center p-0.5 text-espresso-800 transition hover:text-espresso-900" aria-label="Close">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+      <form method="post" class="space-y-4 px-5 py-5" style="padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="password">
+        {% if password_error %}
+          <p class="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-800" role="alert">{{ password_error }}</p>
+        {% endif %}
+        <label class="block">
+          <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Current password</span>
+          <input type="password" name="current_password" required autocomplete="current-password" class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">New password</span>
+          <input type="password" name="new_password" required autocomplete="new-password" class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Confirm new password</span>
+          <input type="password" name="confirm_password" required autocomplete="new-password" class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500">
+        </label>
+        <div class="flex flex-col gap-2 pt-1 sm:flex-row">
+          <button type="button" id="password-modal-cancel" class="min-h-11 flex-1 rounded-full border border-espresso-800/15 py-3 text-sm font-extrabold text-espresso-800 hover:bg-cream-100">
+            Cancel
+          </button>
+          <button type="submit" class="min-h-11 flex-1 rounded-full bg-caramel-600 py-3 text-sm font-extrabold text-cream-50 hover:bg-caramel-700">
+            Update password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const modal = document.getElementById('password-modal');
+    const openBtn = document.getElementById('open-password-modal');
+    const closeBtn = document.getElementById('password-modal-close');
+    const cancelBtn = document.getElementById('password-modal-cancel');
+    const backdrop = document.getElementById('password-modal-backdrop');
+
+    function openModal() {
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      if (window.lucide) window.lucide.createIcons();
+      modal.querySelector('input[name="current_password"]')?.focus();
+    }
+
+    function closeModal() {
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    openBtn?.addEventListener('click', openModal);
+    closeBtn?.addEventListener('click', closeModal);
+    cancelBtn?.addEventListener('click', closeModal);
+    backdrop?.addEventListener('click', closeModal);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+    });
+
+    {% if password_error %}
+    document.body.classList.add('overflow-hidden');
+    {% endif %}
+  })();
+</script>
+{% endblock %}

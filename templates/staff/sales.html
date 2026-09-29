@@ -1,0 +1,222 @@
+{% extends "staff/base_manage.html" %}
+
+{% block title %}Sales{% endblock %}
+
+{% block extra_head %}
+<style>
+  .sales-periods {
+    display: flex;
+    gap: 0.375rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .sales-periods::-webkit-scrollbar { display: none; }
+  .sales-periods a {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    min-height: 2.5rem;
+    padding: 0 0.9rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #cbd5e1;
+    text-decoration: none;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  }
+  .sales-periods a:hover { background: rgba(255, 255, 255, 0.06); }
+  .sales-periods a.is-on {
+    background: rgba(217, 119, 6, 0.22);
+    color: #F0A868;
+    box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.55);
+  }
+  .sales-range {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .sales-download { width: 100%; }
+  @media (min-width: 1024px) {
+    .sales-range {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+      align-items: end;
+    }
+    .sales-download { width: auto; }
+  }
+  .sales-date {
+    color-scheme: dark;
+    min-height: 2.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div>
+  <h1 class="mb-4 font-display text-2xl font-semibold text-white sm:mb-5 sm:text-3xl">Sales</h1>
+
+  <div class="mb-4 space-y-3 rounded-2xl bg-ink-850/90 p-3 ring-1 ring-white/5 sm:p-4">
+    <div class="sales-periods">
+      {% for key, label in periods %}
+        <a href="{% url 'kahawa:sales_history' %}?period={{ key }}" class="{% if period == key %}is-on{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <form id="sales-range" method="get" class="sales-range">
+      <input type="hidden" name="period" value="custom">
+      <label class="block min-w-0">
+        <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">From</span>
+        <input type="date" name="from" value="{{ from_value }}" class="sales-date w-full rounded-xl bg-ink-950 px-3 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+      </label>
+      <label class="block min-w-0">
+        <span class="mb-1.5 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">To</span>
+        <input type="date" name="to" value="{{ to_value }}" class="sales-date w-full rounded-xl bg-ink-950 px-3 text-sm font-bold text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-caramel-500">
+      </label>
+      <a id="sales-download" href="{% url 'kahawa:sales_pdf' %}?period={{ period }}&amp;from={{ from_value }}&amp;to={{ to_value }}" class="sales-download inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-caramel-600 px-4 text-sm font-extrabold text-white hover:bg-caramel-500">
+        <i data-lucide="download" class="h-4 w-4"></i>
+        Download
+      </a>
+    </form>
+    {% if error %}
+      <p class="rounded-xl bg-amber-500/10 px-3 py-2 text-sm font-bold text-amber-200 ring-1 ring-amber-500/20">{{ error }}</p>
+    {% endif %}
+  </div>
+
+  <div class="sales-stats grid grid-cols-2 gap-3">
+    <article class="rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-caramel-500/25 sm:px-4">
+      <p class="text-[10px] font-extrabold uppercase tracking-wide text-caramel-400/90">Paid</p>
+      <p class="mt-1 truncate font-display text-lg font-semibold text-white sm:text-2xl">KSh {{ paid_total }}</p>
+      <p class="mt-1 text-[11px] font-semibold text-slate-500">{{ paid_count }} in this period</p>
+    </article>
+    <article class="rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-white/5 sm:px-4">
+      <p class="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Cash</p>
+      <p class="mt-1 truncate font-display text-lg font-semibold text-white sm:text-2xl">KSh {{ cash.display }}</p>
+      <p class="mt-1 text-[11px] font-semibold text-slate-500">{{ cash.count }} paid</p>
+    </article>
+    <article class="rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-white/5 sm:px-4">
+      <p class="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">M-Pesa</p>
+      <p class="mt-1 truncate font-display text-lg font-semibold text-white sm:text-2xl">KSh {{ mpesa.display }}</p>
+      <p class="mt-1 text-[11px] font-semibold text-slate-500">{{ mpesa.count }} paid</p>
+    </article>
+    <article class="rounded-2xl bg-ink-850/90 px-3 py-3 ring-1 ring-amber-500/25 sm:px-4">
+      <p class="text-[10px] font-extrabold uppercase tracking-wide text-amber-300/90">Still unpaid</p>
+      <p class="mt-1 truncate font-display text-lg font-semibold text-amber-200 sm:text-2xl">KSh {{ unpaid_total }}</p>
+      <p class="mt-1 text-[11px] font-semibold text-slate-500">{{ unpaid_count }} open, any day</p>
+    </article>
+  </div>
+
+  <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <p class="rounded-xl bg-ink-850/90 px-3 py-2.5 text-xs font-semibold text-slate-400 ring-1 ring-white/5">VAT included <span class="mt-0.5 block font-extrabold text-slate-200">KSh {{ tax_display }}</span></p>
+    <p class="rounded-xl bg-ink-850/90 px-3 py-2.5 text-xs font-semibold text-slate-400 ring-1 ring-white/5">Discounts <span class="mt-0.5 block font-extrabold text-slate-200">KSh {{ discount_display }}</span></p>
+    <p class="rounded-xl bg-ink-850/90 px-3 py-2.5 text-xs font-semibold text-slate-400 ring-1 ring-white/5">Opened <span class="mt-0.5 block font-extrabold text-slate-200">{{ opened_count }}</span></p>
+    <p class="rounded-xl bg-ink-850/90 px-3 py-2.5 text-xs font-semibold text-slate-400 ring-1 ring-white/5">Cancelled <span class="mt-0.5 block font-extrabold text-slate-200">{{ cancelled_count }}</span></p>
+    {% if show_other %}
+      <p class="col-span-2 rounded-xl bg-ink-850/90 px-3 py-2.5 text-xs font-semibold text-slate-400 ring-1 ring-white/5 sm:col-span-4">Other payments <span class="mt-0.5 block font-extrabold text-slate-200">KSh {{ other.display }} · {{ other.count }}</span></p>
+    {% endif %}
+  </div>
+
+  <div class="sales-split mt-4 grid gap-4">
+    <section class="overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5">
+      <h2 class="border-b border-white/5 px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500 sm:px-5">Products</h2>
+      <ul class="divide-y divide-white/5">
+        {% for row in products %}
+          <li class="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-extrabold text-white">{{ row.name }}</p>
+              <p class="text-xs font-semibold text-slate-500">{{ row.qty }} sold</p>
+            </div>
+            <p class="shrink-0 text-sm font-extrabold tabular-nums text-white">KSh {{ row.revenue }}</p>
+          </li>
+        {% empty %}
+          <li class="px-5 py-8 text-center text-sm font-semibold text-slate-500">No product sales in this period.</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5">
+      <h2 class="border-b border-white/5 px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500 sm:px-5">Packages</h2>
+      <ul class="divide-y divide-white/5">
+        {% for row in packages %}
+          <li class="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-extrabold text-white">{{ row.name }}</p>
+              <p class="text-xs font-semibold text-slate-500">{{ row.qty }} sold</p>
+            </div>
+            <p class="shrink-0 text-sm font-extrabold tabular-nums text-white">KSh {{ row.revenue }}</p>
+          </li>
+        {% empty %}
+          <li class="px-5 py-8 text-center text-sm font-semibold text-slate-500">No package sales in this period.</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+
+  <div class="sales-orders mt-4 grid gap-4">
+    <section class="overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5">
+      <h2 class="border-b border-white/5 px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500 sm:px-5">Still to collect</h2>
+      <ul class="divide-y divide-white/5">
+        {% for order in unpaid_orders %}
+          <li class="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+            <div class="min-w-0">
+              <a href="{% url 'kahawa:order_receipt' order.code %}" target="_blank" rel="noopener" class="font-mono text-sm font-extrabold text-white hover:text-caramel-300">{{ order.code }}</a>
+              <p class="truncate text-xs font-semibold text-slate-500">{{ order.name }} · {{ order.when }}</p>
+            </div>
+            <p class="shrink-0 text-sm font-extrabold tabular-nums text-white">KSh {{ order.total }}</p>
+          </li>
+        {% empty %}
+          <li class="px-5 py-8 text-center text-sm font-semibold text-slate-500">Nothing left unpaid.</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="overflow-hidden rounded-2xl bg-ink-850/90 ring-1 ring-white/5">
+      <h2 class="border-b border-white/5 px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-slate-500 sm:px-5">Paid orders</h2>
+      {% if orders_truncated %}
+        <p class="border-b border-white/5 px-4 py-2 text-xs font-semibold text-slate-500 sm:px-5">Latest 300. Totals above include every paid order in the period.</p>
+      {% endif %}
+      <ul class="divide-y divide-white/5">
+        {% for order in orders %}
+          <li class="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+            <div class="min-w-0">
+              <a href="{% url 'kahawa:order_receipt' order.code %}" target="_blank" rel="noopener" class="font-mono text-sm font-extrabold text-white hover:text-caramel-300">{{ order.code }}</a>
+              <p class="truncate text-xs font-semibold text-slate-500">{{ order.name }} · {{ order.when }} · {{ order.method }}</p>
+            </div>
+            <p class="shrink-0 text-sm font-extrabold tabular-nums text-white">KSh {{ order.total }}</p>
+          </li>
+        {% empty %}
+          <li class="px-5 py-8 text-center text-sm font-semibold text-slate-500">No paid orders in this period.</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const form = document.getElementById('sales-range');
+    const link = document.getElementById('sales-download');
+    const from = form?.querySelector('input[name="from"]');
+    const to = form?.querySelector('input[name="to"]');
+    if (!form || !link || !from || !to) return;
+    const pdf = link.href.split('?')[0];
+
+    function syncDownload() {
+      link.href = pdf
+        + '?period=custom&from=' + encodeURIComponent(from.value)
+        + '&to=' + encodeURIComponent(to.value);
+    }
+
+    from.addEventListener('change', () => {
+      if (!from.value || !to.value) return;
+      syncDownload();
+      form.submit();
+    });
+    to.addEventListener('change', () => {
+      if (!from.value || !to.value) return;
+      syncDownload();
+      form.submit();
+    });
+    link.addEventListener('click', syncDownload);
+  })();
+</script>
+{% endblock %}

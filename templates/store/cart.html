@@ -1,0 +1,788 @@
+{% extends "base.html" %}
+
+{% block title %}Cart{% endblock %}
+
+{% block content %}
+<section id="cart-page" class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+  <script>
+    (function () {
+      var empty = true;
+      try {
+        var cart = JSON.parse(localStorage.getItem('kahawa_cart') || '{}');
+        empty = !cart || !Object.keys(cart).length;
+      } catch (e) { empty = true; }
+      if (empty) document.currentScript.parentElement.classList.add('is-empty');
+    })();
+  </script>
+  <style>
+    #cart-page.is-empty #cart-page-head,
+    #cart-page.is-empty #cart-page-body { display: none; }
+    #cart-page:not(.is-empty) #cart-page-empty { display: none; }
+  </style>
+  <div id="cart-page-head" class="mb-8">
+    <h1 class="font-display text-3xl font-semibold text-espresso-900 sm:text-4xl">Your bag</h1>
+    <p class="mt-2 text-sm font-semibold text-espresso-700/70">
+      {% if is_authenticated %}
+        Signed in as {{ user.get_short_name|default:user.username }} — review items and pay when ready.
+      {% else %}
+        Review your items, add your details, then pay with M-Pesa.
+      {% endif %}
+    </p>
+  </div>
+
+  <div id="cart-page-empty" class="mx-auto max-w-lg rounded-3xl bg-cream-50 p-8 text-center ring-1 ring-caramel-400/15">
+    <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-latte/60 text-espresso-800">
+      <i data-lucide="shopping-bag" class="h-7 w-7"></i>
+    </span>
+    <p class="mt-4 font-display text-xl text-espresso-900">Your bag is empty</p>
+    <p class="mt-2 text-sm font-semibold text-espresso-700/60">Add a drink from the menu to get started.</p>
+    <a href="{% url 'kahawa:menu' %}" class="mt-5 inline-flex rounded-full bg-caramel-600 px-5 py-2.5 text-sm font-extrabold text-cream-50 hover:bg-caramel-700">
+      Browse Menu
+    </a>
+  </div>
+
+  <div id="cart-page-body" class="grid gap-8 lg:grid-cols-5">
+    <div class="space-y-6 lg:col-span-3">
+      <div id="cart-page-items" class="space-y-3">
+        {# Filled by JS #}
+      </div>
+      <form id="cart-checkout-form" class="space-y-6" novalidate>
+        {% csrf_token %}
+
+        <div class="rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15">
+          <h2 class="font-display text-xl font-semibold text-espresso-900">Your details</h2>
+          <div class="mt-4 grid gap-4 sm:grid-cols-2">
+            <label class="block sm:col-span-2">
+              <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Customer name</span>
+              <input
+                type="text"
+                name="customer_name"
+                id="customer_name"
+                required
+                maxlength="100"
+                value="{{ prefill.name }}"
+                class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+                {% if is_authenticated and prefill.name %}readonly{% endif %}
+              >
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Phone <span class="normal-case tracking-normal text-espresso-700/40">(optional · needed for M-Pesa / SMS)</span></span>
+              <input
+                type="tel"
+                name="phone"
+                id="customer_phone"
+                placeholder="07XXXXXXXX"
+                value="{{ prefill.phone }}"
+                class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+              >
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Email <span class="normal-case tracking-normal text-espresso-700/40">(optional)</span></span>
+              <input
+                type="email"
+                name="email"
+                id="email"
+                value="{{ prefill.email }}"
+                class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+                {% if is_authenticated and prefill.email %}readonly{% endif %}
+              >
+            </label>
+          </div>
+        </div>
+
+        <div class="rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15">
+          <h2 class="font-display text-xl font-semibold text-espresso-900">How do you want it?</h2>
+          {% if table_code %}
+            <div class="mt-4 flex items-start justify-between gap-3 rounded-2xl bg-latte/50 px-4 py-3 ring-1 ring-caramel-400/20">
+              <div>
+                <p class="text-sm font-extrabold text-espresso-900">Dine in · Table {{ table_code }}{% if table_label %} · {{ table_label }}{% endif %}</p>
+                <p class="mt-1 text-xs font-semibold text-espresso-700/60">You scanned a table QR. Order will go to this table.</p>
+                <input type="hidden" name="order_type" value="DINE_IN" id="order-type-dine-in">
+                <input type="hidden" name="table_code" id="table_code" value="{{ table_code }}">
+              </div>
+              <button
+                type="submit"
+                form="clear-table-form"
+                class="shrink-0 text-xs font-extrabold text-espresso-700/55 underline hover:text-espresso-900"
+              >
+                Clear
+              </button>
+            </div>
+          {% else %}
+          <div class="mt-4 grid grid-cols-2 gap-3" role="group" aria-label="Order type">
+            <label class="cursor-pointer">
+              <input type="radio" name="order_type" value="PICKUP" class="peer sr-only" checked>
+              <span class="flex flex-col items-center gap-2 rounded-2xl bg-cream-100 px-4 py-4 text-center ring-1 ring-caramel-400/20 transition peer-checked:bg-espresso-800 peer-checked:text-cream-50 peer-checked:ring-espresso-800">
+                <i data-lucide="store" class="h-5 w-5"></i>
+                <span class="text-sm font-extrabold">Pickup</span>
+              </span>
+            </label>
+            <label class="cursor-pointer">
+              <input type="radio" name="order_type" value="DELIVERY" class="peer sr-only">
+              <span class="flex flex-col items-center gap-2 rounded-2xl bg-cream-100 px-4 py-4 text-center ring-1 ring-caramel-400/20 transition peer-checked:bg-espresso-800 peer-checked:text-cream-50 peer-checked:ring-espresso-800">
+                <i data-lucide="bike" class="h-5 w-5"></i>
+                <span class="text-sm font-extrabold">Delivery</span>
+              </span>
+            </label>
+          </div>
+
+          <div id="pickup-panel" class="mt-5 rounded-2xl bg-latte/40 px-4 py-4 ring-1 ring-caramel-400/15">
+            <p class="flex items-center gap-2 text-sm font-extrabold text-espresso-900">
+              <i data-lucide="timer" class="h-4 w-4 text-caramel-600"></i>
+              Cafe pickup · ~{{ cafe.prep_pickup_min }} min prep
+            </p>
+            <p class="mt-2 text-sm font-semibold leading-relaxed text-espresso-700/75">
+              We’ll text you when your order is ready. Collect at the counter — bring your order code.
+            </p>
+          </div>
+
+          <div id="delivery-panel" class="mt-5 hidden space-y-4">
+            <div class="rounded-2xl border border-red-400/40 bg-red-50 px-4 py-4">
+              <p class="text-sm font-extrabold leading-relaxed text-red-900">
+                We only deliver within a 1 km radius around our cafe so your coffee stays hot.
+              </p>
+            </div>
+            <p class="flex items-center gap-2 text-sm font-extrabold text-espresso-900">
+              <i data-lucide="timer" class="h-4 w-4 text-caramel-600"></i>
+              Delivery ETA · ~{{ cafe.prep_delivery_min }} min
+            </p>
+            <label class="block">
+              <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Delivery address / building name</span>
+              <textarea
+                name="delivery_location"
+                id="delivery_location"
+                rows="3"
+                placeholder="e.g. Lonrho House, 4th floor · next to the atrium"
+                class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+              >{{ prefill.location }}</textarea>
+            </label>
+            <label class="flex cursor-pointer items-start gap-3 rounded-2xl bg-cream-100 px-4 py-3 ring-1 ring-caramel-400/20">
+              <input
+                type="checkbox"
+                name="delivery_confirmed"
+                id="delivery_confirmed"
+                class="mt-0.5 h-4 w-4 rounded border-caramel-400/40 text-caramel-600 focus:ring-caramel-500"
+              >
+              <span class="text-sm font-bold text-espresso-800">
+                I confirm my delivery location is within 1 km.
+              </span>
+            </label>
+            {% if is_authenticated %}
+              <label class="flex cursor-pointer items-start gap-3 rounded-2xl bg-cream-100 px-4 py-3 ring-1 ring-caramel-400/20">
+                <input
+                  type="checkbox"
+                  name="save_location"
+                  id="save_location"
+                  class="mt-0.5 h-4 w-4 rounded border-caramel-400/40 text-caramel-600 focus:ring-caramel-500"
+                >
+                <span class="text-sm font-bold text-espresso-800">
+                  Save this location for next time
+                </span>
+              </label>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15">
+          <h2 class="font-display text-xl font-semibold text-espresso-900">Rewards &amp; gift card</h2>
+          {% if is_authenticated %}
+            <p class="mt-2 text-sm font-semibold text-espresso-700/70">
+              You have <span class="font-extrabold text-espresso-900" id="loyalty-balance">{{ loyalty_points }}</span> points
+              · 20 pts = KSh 10 off (up to half your subtotal)
+            </p>
+            <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-cream-100 px-4 py-3 ring-1 ring-caramel-400/20">
+              <input
+                type="checkbox"
+                id="redeem-points-toggle"
+                class="mt-0.5 h-4 w-4 rounded border-caramel-400/40 text-caramel-600 focus:ring-caramel-500"
+                {% if loyalty_points < 20 %}disabled{% endif %}
+              >
+              <span class="text-sm font-bold text-espresso-800">
+                Redeem points on this order
+                <span class="mt-0.5 block text-xs font-semibold text-espresso-700/55" id="redeem-points-hint">
+                  {% if loyalty_points < 20 %}Need at least 20 points{% else %}We’ll apply the maximum you can use{% endif %}
+                </span>
+              </span>
+            </label>
+            <input type="hidden" id="redeem_points" value="0">
+          {% else %}
+            <p class="mt-2 text-sm font-semibold text-espresso-700/70">
+              <a href="{% url 'kahawa:login' %}" class="font-extrabold text-caramel-700 underline">Sign in</a> to earn and redeem loyalty points.
+            </p>
+          {% endif %}
+          <label class="mt-4 block">
+            <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Gift card code <span class="normal-case tracking-normal text-espresso-700/40">(optional)</span></span>
+            <input
+              type="text"
+              id="gift_card_code"
+              maxlength="16"
+              placeholder="GFT-XXXXXX"
+              class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold uppercase tracking-wide text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+            >
+          </label>
+          <p class="mt-3 text-xs font-semibold text-espresso-700/50">
+            <a href="{% url 'kahawa:gift_card_buy' %}" class="text-caramel-700 underline">Buy a gift card</a>
+          </p>
+        </div>
+
+        <p id="cart-form-error" class="hidden rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-800" role="alert"></p>
+      </form>
+    </div>
+
+    <aside class="lg:col-span-2">
+      <div class="sticky top-24 rounded-3xl bg-cream-50 p-6 ring-1 ring-caramel-400/15">
+        <h2 class="font-display text-xl font-semibold text-espresso-900">Summary</h2>
+        <dl class="mt-5 space-y-1.5 text-sm font-bold text-espresso-700/80">
+          <div class="flex justify-between">
+            <dt>Subtotal</dt>
+            <dd>KSh <span id="cart-subtotal">0</span></dd>
+          </div>
+          <div class="flex justify-between">
+            <dt>VAT included</dt>
+            <dd>KSh <span id="cart-tax">0</span></dd>
+          </div>
+          <div class="flex justify-between">
+            <dt>Delivery</dt>
+            <dd>KSh <span id="cart-delivery">0</span></dd>
+          </div>
+          <div id="cart-discount-row" class="hidden flex justify-between text-emerald-800">
+            <dt>Discounts</dt>
+            <dd>− KSh <span id="cart-discount">0</span></dd>
+          </div>
+          <div class="flex justify-between border-t border-caramel-400/15 pt-2 text-base font-extrabold text-espresso-900">
+            <dt>Total</dt>
+            <dd>KSh <span id="cart-total">0</span></dd>
+          </div>
+        </dl>
+        {% if table_code %}
+        <button
+          type="button"
+          id="cart-pay-later-btn"
+          disabled
+          class="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-caramel-400/40 bg-cream-100 py-3.5 text-sm font-extrabold text-espresso-900 transition hover:bg-latte disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <i data-lucide="utensils" class="h-4 w-4"></i>
+          Order now · pay later
+        </button>
+        {% endif %}
+        <button
+          type="button"
+          id="cart-pay-btn"
+          disabled
+          class="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 py-3.5 text-sm font-extrabold text-cream-50 transition hover:bg-caramel-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <i data-lucide="smartphone" class="h-4 w-4"></i>
+          Pay with M-Pesa
+        </button>
+        {% if table_code %}
+        <p class="mt-3 text-center text-[11px] font-semibold text-espresso-700/50">
+          Pay later sends the order to the kitchen unpaid — settle at the counter when you’re ready.
+        </p>
+        {% else %}
+        <p class="mt-3 text-center text-[11px] font-semibold text-espresso-700/50">
+          You’ll get an M-Pesa prompt on your phone to confirm payment.
+        </p>
+        {% endif %}
+      </div>
+    </aside>
+  </div>
+</section>
+
+{# Outside checkout form — avoids nested forms #}
+<form id="clear-table-form" method="post" action="{% url 'kahawa:clear_table' %}" class="hidden">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="cart">
+</form>
+
+{# Payment modal #}
+<div id="pay-modal" class="fixed inset-0 z-[60] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title">
+  <div id="pay-modal-backdrop" class="absolute inset-0 bg-espresso-900/55 backdrop-blur-sm"></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+    <div class="w-full max-w-md overflow-hidden rounded-t-3xl bg-cream-50 sm:rounded-3xl">
+      <div class="flex items-center justify-between gap-3 border-b border-caramel-400/15 px-5 py-4">
+        <h2 id="pay-modal-title" class="font-display text-xl font-semibold text-espresso-900">M-Pesa payment</h2>
+        <button type="button" id="pay-modal-close" class="inline-flex shrink-0 items-center justify-center p-0.5 text-espresso-800 transition hover:text-espresso-900" aria-label="Close">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <div class="grid px-5 py-6">
+        {# Phone step #}
+        <div id="pay-step-phone" class="pay-step col-start-1 row-start-1 flex flex-col">
+          <p class="text-sm font-semibold text-espresso-700/70">
+            Enter the M-Pesa number that will receive the payment prompt.
+          </p>
+          <label class="mt-4 block">
+            <span class="mb-1.5 block text-xs font-extrabold uppercase tracking-wide text-espresso-700/55">Phone number</span>
+            <input
+              type="tel"
+              id="pay-phone"
+              placeholder="07XXXXXXXX or 01XXXXXXXX"
+              value="{{ prefill.phone }}"
+              class="w-full rounded-2xl border-0 bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 outline-none focus:ring-2 focus:ring-caramel-500"
+            >
+          </label>
+          <p id="pay-phone-error" class="mt-3 hidden text-sm font-bold text-red-700" role="alert"></p>
+          <button
+            type="button"
+            id="pay-submit-btn"
+            class="mt-auto pt-5 flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 py-3.5 text-sm font-extrabold text-cream-50 transition hover:bg-caramel-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Send prompt
+          </button>
+        </div>
+
+        {# Waiting step #}
+        <div id="pay-step-waiting" class="pay-step col-start-1 row-start-1 flex flex-col items-center justify-center text-center invisible pointer-events-none" aria-hidden="true">
+          <span class="flex h-14 w-14 items-center justify-center rounded-full bg-caramel-600/15 text-caramel-700">
+            <i data-lucide="loader-circle" class="h-7 w-7 animate-spin"></i>
+          </span>
+          <p class="mt-4 font-display text-xl font-semibold text-espresso-900">Waiting for payment</p>
+          <p id="pay-waiting-message" class="mt-2 text-sm font-semibold text-espresso-700/65">
+            Check your phone and enter your M-Pesa PIN to confirm.
+          </p>
+        </div>
+
+        {# Success step #}
+        <div id="pay-step-success" class="pay-step col-start-1 row-start-1 flex flex-col items-center justify-center text-center invisible pointer-events-none" aria-hidden="true">
+          <span class="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <i data-lucide="check" class="h-7 w-7"></i>
+          </span>
+          <p class="mt-4 font-display text-xl font-semibold text-espresso-900">Payment confirmed</p>
+          <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+            You’re all set — we’re getting your order ready.
+          </p>
+          <p id="pay-success-code" class="mt-3 text-sm font-extrabold text-espresso-900"></p>
+          <a
+            id="pay-success-link"
+            href="#"
+            class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 py-3.5 text-sm font-extrabold text-cream-50 transition hover:bg-caramel-700"
+          >
+            View order
+          </a>
+        </div>
+
+        {# Failed step #}
+        <div id="pay-step-failed" class="pay-step col-start-1 row-start-1 flex flex-col items-center justify-center text-center invisible pointer-events-none" aria-hidden="true">
+          <span class="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-700">
+            <i data-lucide="x" class="h-7 w-7"></i>
+          </span>
+          <p class="mt-4 font-display text-xl font-semibold text-espresso-900">Payment failed</p>
+          <p class="mt-2 text-sm font-semibold text-espresso-700/65">
+            Payment timed out or was cancelled
+          </p>
+          <button
+            type="button"
+            id="pay-retry-btn"
+            class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-caramel-600 py-3.5 text-sm font-extrabold text-cream-50 transition hover:bg-caramel-700"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const form = document.getElementById('cart-checkout-form');
+    const pickupPanel = document.getElementById('pickup-panel');
+    const deliveryPanel = document.getElementById('delivery-panel');
+    const formError = document.getElementById('cart-form-error');
+    const payBtn = document.getElementById('cart-pay-btn');
+    const payLaterBtn = document.getElementById('cart-pay-later-btn');
+    const payModal = document.getElementById('pay-modal');
+    const payPhone = document.getElementById('pay-phone');
+    const payPhoneError = document.getElementById('pay-phone-error');
+    const paySubmitBtn = document.getElementById('pay-submit-btn');
+    const payRetryBtn = document.getElementById('pay-retry-btn');
+    const loyaltyBalance = {{ loyalty_points|default:0 }};
+    const REDEEM_RATE = 2; // points per KSh
+    const isDineIn = {{ table_code|yesno:"true,false" }};
+
+    const steps = {
+      phone: document.getElementById('pay-step-phone'),
+      waiting: document.getElementById('pay-step-waiting'),
+      success: document.getElementById('pay-step-success'),
+      failed: document.getElementById('pay-step-failed'),
+    };
+
+    let pollTimer = null;
+    let activeOrderCode = null;
+    let isGuestOrder = false;
+    let closingLocked = false;
+    window.__kahawaCartDiscount = 0;
+
+    function money(n) {
+      return Math.round(Number(n) || 0).toLocaleString('en-KE');
+    }
+
+    function csrfToken() {
+      return form.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+
+    function selectedOrderType() {
+      if (isDineIn) return 'DINE_IN';
+      const el = form.querySelector('input[name="order_type"]:checked');
+      return el ? el.value : 'PICKUP';
+    }
+
+    function maxRedeemPoints(subtotal) {
+      if (!loyaltyBalance || loyaltyBalance < 20) return 0;
+      const maxDiscount = Math.floor(subtotal * 0.5);
+      let maxByValue = maxDiscount * REDEEM_RATE;
+      let usable = Math.min(loyaltyBalance, maxByValue);
+      usable = Math.floor(usable / REDEEM_RATE) * REDEEM_RATE;
+      return Math.max(0, usable);
+    }
+
+    function syncDiscountEstimate() {
+      const subtotal = window.KahawaCart?.subtotal?.() || 0;
+      const toggle = document.getElementById('redeem-points-toggle');
+      const redeemInput = document.getElementById('redeem_points');
+      let points = 0;
+      if (toggle?.checked) {
+        points = maxRedeemPoints(subtotal);
+      }
+      if (redeemInput) redeemInput.value = String(points);
+      const pointsDiscount = Math.floor(points / REDEEM_RATE);
+      // Gift card amount is applied server-side; UI only shows points estimate
+      window.__kahawaCartDiscount = pointsDiscount;
+      const hint = document.getElementById('redeem-points-hint');
+      if (hint && toggle && !toggle.disabled) {
+        hint.textContent = points
+          ? `Using ${points} pts (− KSh ${pointsDiscount})`
+          : 'We’ll apply the maximum you can use';
+      }
+      window.KahawaCart?.renderCartPage?.();
+    }
+
+    function showFormError(msg) {
+      formError.textContent = msg;
+      formError.classList.remove('hidden');
+    }
+
+    function clearFormError() {
+      formError.classList.add('hidden');
+      formError.textContent = '';
+    }
+
+    function showPhoneError(msg) {
+      payPhoneError.textContent = msg;
+      payPhoneError.classList.remove('hidden');
+    }
+
+    function clearPhoneError() {
+      payPhoneError.classList.add('hidden');
+      payPhoneError.textContent = '';
+    }
+
+    function setStep(name) {
+      Object.entries(steps).forEach(([key, el]) => {
+        if (!el) return;
+        const active = key === name;
+        el.classList.toggle('invisible', !active);
+        el.classList.toggle('pointer-events-none', !active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
+      });
+      closingLocked = name === 'waiting';
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function openPayModal() {
+      setStep('phone');
+      clearPhoneError();
+      const waitMsg = document.getElementById('pay-waiting-message');
+      if (waitMsg) {
+        waitMsg.textContent = 'Check your phone and enter your M-Pesa PIN to confirm.';
+      }
+      payModal.classList.remove('hidden');
+      payModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('overflow-hidden');
+      payPhone?.focus();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closePayModal() {
+      if (closingLocked) return;
+      stopPolling();
+      payModal.classList.add('hidden');
+      payModal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    function toggleOrderType() {
+      if (isDineIn) {
+        window.KahawaCart?.renderCartPage?.();
+        syncPayButton();
+        return;
+      }
+      const isDelivery = selectedOrderType() === 'DELIVERY';
+      pickupPanel?.classList.toggle('hidden', isDelivery);
+      deliveryPanel?.classList.toggle('hidden', !isDelivery);
+      window.KahawaCart?.renderCartPage?.();
+      syncPayButton();
+    }
+
+    function requiredFieldsReady() {
+      const cart = window.KahawaCart?.get() || {};
+      if (!Object.keys(cart).length) return false;
+      if (!document.getElementById('customer_name')?.value.trim()) return false;
+      if (selectedOrderType() === 'DELIVERY') {
+        if (!document.getElementById('delivery_location')?.value.trim()) return false;
+        if (!document.getElementById('delivery_confirmed')?.checked) return false;
+      }
+      return true;
+    }
+
+    function syncPayButton() {
+      const ready = requiredFieldsReady();
+      if (payBtn) payBtn.disabled = !ready;
+      if (payLaterBtn) payLaterBtn.disabled = !ready;
+    }
+
+    function validateDetails() {
+      clearFormError();
+      const cart = window.KahawaCart?.get() || {};
+      if (!Object.keys(cart).length) {
+        showFormError('Your bag is empty.');
+        syncPayButton();
+        return false;
+      }
+      const name = document.getElementById('customer_name').value.trim();
+      if (!name) {
+        showFormError('Please enter your name.');
+        syncPayButton();
+        return false;
+      }
+      if (selectedOrderType() === 'DELIVERY') {
+        if (!document.getElementById('delivery_location').value.trim()) {
+          showFormError('Please enter your delivery address / building name.');
+          syncPayButton();
+          return false;
+        }
+        if (!document.getElementById('delivery_confirmed').checked) {
+          showFormError('Please confirm your delivery location is within 1 km.');
+          syncPayButton();
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function buildPayload(phone) {
+      const formPhone = (document.getElementById('customer_phone')?.value || '').trim();
+      return {
+        cart: Object.values(window.KahawaCart.get()),
+        customer_name: document.getElementById('customer_name').value.trim(),
+        phone: phone != null && phone !== '' ? phone : formPhone,
+        email: document.getElementById('email').value.trim(),
+        order_type: selectedOrderType(),
+        table_code: document.getElementById('table_code')?.value || '',
+        delivery_location: document.getElementById('delivery_location')?.value.trim() || '',
+        delivery_confirmed: !!document.getElementById('delivery_confirmed')?.checked,
+        save_location: !!document.getElementById('save_location')?.checked,
+        redeem_points: parseInt(document.getElementById('redeem_points')?.value || '0', 10) || 0,
+        gift_card_code: (document.getElementById('gift_card_code')?.value || '').trim().toUpperCase(),
+      };
+    }
+
+    async function startPayment(phone, isRetry) {
+      clearPhoneError();
+      paySubmitBtn.disabled = true;
+      if (payRetryBtn) payRetryBtn.disabled = true;
+      setStep('waiting');
+
+      const body = isRetry && activeOrderCode
+        ? { order_code: activeOrderCode, phone }
+        : buildPayload(phone);
+
+      try {
+        const res = await fetch('{% url "kahawa:start_payment" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-CSRFToken': csrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          setStep(isRetry ? 'failed' : 'phone');
+          const msg = data.error || 'Could not start payment.';
+          if (!isRetry) showPhoneError(msg);
+          paySubmitBtn.disabled = false;
+          if (payRetryBtn) payRetryBtn.disabled = false;
+          closingLocked = false;
+          return;
+        }
+
+        if (data.payment_status === 'PAID' && data.redirect_url) {
+          finishSuccess(data);
+          return;
+        }
+
+        activeOrderCode = data.order_code;
+        isGuestOrder = !!data.is_guest;
+        const waitMsg = document.getElementById('pay-waiting-message');
+        if (waitMsg && data.message) {
+          waitMsg.textContent = data.message;
+        }
+        beginPolling(data.order_code);
+      } catch (_) {
+        setStep(isRetry ? 'failed' : 'phone');
+        if (!isRetry) showPhoneError('Network error. Please try again.');
+        paySubmitBtn.disabled = false;
+        if (payRetryBtn) payRetryBtn.disabled = false;
+        closingLocked = false;
+      }
+    }
+
+    function beginPolling(orderCode) {
+      stopPolling();
+      const statusUrl = `{% url "kahawa:payment_status" order_code="__CODE__" %}`.replace('__CODE__', encodeURIComponent(orderCode));
+
+      pollTimer = setInterval(async () => {
+        try {
+          const res = await fetch(statusUrl, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) return;
+
+          if (data.payment_status === 'PAID') {
+            stopPolling();
+            finishSuccess(data);
+          } else if (data.payment_status === 'FAILED') {
+            stopPolling();
+            closingLocked = false;
+            paySubmitBtn.disabled = false;
+            if (payRetryBtn) payRetryBtn.disabled = false;
+            setStep('failed');
+          }
+        } catch (_) {
+          /* keep polling */
+        }
+      }, 1500);
+    }
+
+    function finishSuccess(data) {
+      closingLocked = false;
+      const code = data.order_code || activeOrderCode;
+      if (isGuestOrder && code) {
+        window.KahawaCart.addRecentOrder(code);
+      }
+      window.KahawaCart.clear();
+      const codeEl = document.getElementById('pay-success-code');
+      const linkEl = document.getElementById('pay-success-link');
+      if (codeEl) codeEl.textContent = code ? `Order ${code}` : '';
+      if (linkEl && data.redirect_url) linkEl.href = data.redirect_url;
+      setStep('success');
+      window.KahawaCart.renderCartPage?.();
+    }
+
+    payBtn?.addEventListener('click', () => {
+      syncDiscountEstimate();
+      if (!validateDetails()) return;
+      const formPhone = (document.getElementById('customer_phone')?.value || '').trim();
+      if (payPhone && formPhone && !payPhone.value) payPhone.value = formPhone;
+      openPayModal();
+    });
+
+    payLaterBtn?.addEventListener('click', async () => {
+      syncDiscountEstimate();
+      if (!validateDetails()) return;
+      payLaterBtn.disabled = true;
+      if (payBtn) payBtn.disabled = true;
+      clearFormError();
+      try {
+        const res = await fetch('{% url "kahawa:place_order" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-CSRFToken': csrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify(buildPayload('')),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showFormError(data.error || 'Could not place order.');
+          syncPayButton();
+          return;
+        }
+        if (data.is_guest && data.order_code) {
+          window.KahawaCart?.addRecentOrder?.(data.order_code);
+        }
+        window.KahawaCart?.clear?.();
+        window.location.href = data.redirect_url || '{% url "kahawa:orders" %}';
+      } catch (_) {
+        showFormError('Network error. Please try again.');
+        syncPayButton();
+      }
+    });
+
+    paySubmitBtn?.addEventListener('click', () => {
+      const phone = (payPhone?.value || '').trim();
+      if (!phone) {
+        showPhoneError('Enter your M-Pesa phone number.');
+        return;
+      }
+      startPayment(phone, false);
+    });
+
+    payRetryBtn?.addEventListener('click', () => {
+      const phone = (payPhone?.value || '').trim();
+      if (!phone) {
+        setStep('phone');
+        showPhoneError('Enter your M-Pesa phone number.');
+        return;
+      }
+      startPayment(phone, true);
+    });
+
+    document.getElementById('pay-modal-close')?.addEventListener('click', closePayModal);
+    document.getElementById('pay-modal-backdrop')?.addEventListener('click', closePayModal);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePayModal();
+    });
+
+    form.querySelectorAll('input[name="order_type"]').forEach((el) => {
+      el.addEventListener('change', toggleOrderType);
+    });
+
+    ['customer_name', 'customer_phone', 'delivery_location', 'delivery_confirmed'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', syncPayButton);
+      el.addEventListener('change', syncPayButton);
+    });
+
+    document.getElementById('redeem-points-toggle')?.addEventListener('change', syncDiscountEstimate);
+
+    window.addEventListener('kahawa:cart-updated', () => {
+      syncDiscountEstimate();
+    });
+    window.addEventListener('kahawa:cart-page-rendered', syncPayButton);
+
+    toggleOrderType();
+    syncDiscountEstimate();
+    syncPayButton();
+  })();
+</script>
+{% endblock %}

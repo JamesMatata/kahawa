@@ -1,0 +1,105 @@
+{# Customize & Add — bottom sheet on phone, modal on desktop #}
+<div id="customize-modal" class="fixed inset-0 z-[60] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="customize-title">
+  <div id="customize-backdrop" class="absolute inset-0 bg-espresso-900/55 backdrop-blur-sm"></div>
+  <div class="relative z-10 flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+    <div class="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-cream-50 sm:max-h-[min(34rem,80vh)] sm:rounded-3xl">
+      {# Header — stays put; body scrolls beneath #}
+      <div class="shrink-0 border-b border-caramel-400/15 px-5 pt-4 pb-3">
+        <div class="flex items-center justify-between gap-3">
+          <h2 id="customize-title" class="min-w-0 flex-1 truncate font-display text-xl font-semibold text-espresso-900 sm:text-2xl">
+            Customize
+          </h2>
+          <button type="button" id="customize-close" class="inline-flex shrink-0 items-center justify-center p-0.5 text-espresso-800 transition hover:text-espresso-900" aria-label="Close">
+            <i data-lucide="x" class="h-5 w-5"></i>
+          </button>
+        </div>
+        <span id="customize-category" class="mt-2 inline-flex rounded-full bg-caramel-600/15 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-caramel-700">
+          Drink
+        </span>
+      </div>
+
+      {# Scrollable body #}
+      <div class="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-4">
+        <div class="overflow-hidden rounded-2xl bg-latte/50">
+          <img id="customize-image" src="" alt="" class="hidden h-32 w-full object-cover sm:h-36">
+          <div id="customize-image-fallback" class="flex h-32 items-center justify-center sm:h-36">
+            <i data-lucide="coffee" class="h-10 w-10 text-espresso-800/30"></i>
+          </div>
+        </div>
+
+        <fieldset id="customize-size">
+          <legend class="mb-2 text-xs font-extrabold uppercase tracking-widest text-espresso-700/60">Size</legend>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="customize-option cursor-pointer">
+              <input type="radio" name="size" value="Regular" data-extra="0" class="peer sr-only" checked>
+              <span class="flex items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 transition peer-checked:bg-espresso-800 peer-checked:text-cream-50 peer-checked:ring-espresso-800">
+                Regular
+                <span class="text-xs font-extrabold opacity-70">Base</span>
+              </span>
+            </label>
+            <label class="customize-option cursor-pointer">
+              <input type="radio" name="size" value="Large" data-extra="50" class="peer sr-only">
+              <span class="flex items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 transition peer-checked:bg-espresso-800 peer-checked:text-cream-50 peer-checked:ring-espresso-800">
+                Large
+                <span class="text-xs font-extrabold opacity-70">+KSh 50</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset id="customize-milk">
+          <legend class="mb-2 text-xs font-extrabold uppercase tracking-widest text-espresso-700/60">Milk</legend>
+          <div class="grid grid-cols-1 gap-2">
+            <label class="customize-option cursor-pointer">
+              <input type="radio" name="milk" value="Dairy" data-extra="0" class="peer sr-only" checked>
+              <span class="flex items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 transition peer-checked:bg-espresso-800 peer-checked:text-cream-50 peer-checked:ring-espresso-800">
+                Dairy
+                <span class="text-xs font-extrabold opacity-70">Included</span>
+              </span>
+            </label>
+            <label class="customize-option cursor-pointer">
+              <input type="radio" name="milk" value="Oat" data-extra="50" class="peer sr-only">
+              <span class="flex items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 transition peer-checked:bg-espresso-800 peer-checked:text-cream-50 peer-checked:ring-espresso-800">
+                Oat
+                <span class="text-xs font-extrabold opacity-70">+KSh 50</span>
+              </span>
+            </label>
+            <label class="customize-option cursor-pointer">
+              <input type="radio" name="milk" value="Almond" data-extra="50" class="peer sr-only">
+              <span class="flex items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 text-sm font-bold text-espresso-800 ring-1 ring-caramel-400/20 transition peer-checked:bg-espresso-800 peer-checked:text-cream-50 peer-checked:ring-espresso-800">
+                Almond
+                <span class="text-xs font-extrabold opacity-70">+KSh 50</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <label id="customize-shot" class="customize-option flex cursor-pointer items-center justify-between rounded-2xl bg-cream-100 px-4 py-3 ring-1 ring-caramel-400/20 has-[:checked]:bg-caramel-600/15 has-[:checked]:ring-caramel-600/40">
+          <span class="flex items-center gap-3">
+            <input type="checkbox" id="extra-shot" name="extra_shot" data-extra="100" class="h-4 w-4 rounded border-caramel-400/40 text-caramel-600 focus:ring-caramel-500">
+            <span class="text-sm font-bold text-espresso-800">Extra Espresso Shot</span>
+          </span>
+          <span class="text-xs font-extrabold text-caramel-700">+KSh 100</span>
+        </label>
+
+        <p class="rounded-2xl bg-latte/40 px-4 py-3 text-xs font-semibold leading-relaxed text-espresso-700/75">
+          <span class="font-extrabold text-espresso-900">ETA</span>
+          · Pickup ~{{ cafe.prep_pickup_min }} min · Delivery ~{{ cafe.prep_delivery_min }} min
+        </p>
+      </div>
+
+      {# Footer — fixed #}
+      <div class="shrink-0 flex items-center justify-between gap-4 border-t border-caramel-400/15 bg-cream-50 px-5 py-3.5">
+        <p class="font-display text-xl font-semibold text-espresso-900 sm:text-2xl">
+          KSh <span id="customize-total">0</span>
+        </p>
+        <button type="button" id="customize-add" class="inline-flex items-center gap-2 rounded-full bg-caramel-600 px-5 py-3 text-sm font-extrabold text-cream-50 transition hover:bg-caramel-700 sm:px-6 sm:py-3.5">
+          <i data-lucide="shopping-bag" class="h-4 w-4"></i>
+          Add to Bag
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="cart-toast" class="pointer-events-none fixed bottom-6 left-1/2 z-[70] hidden -translate-x-1/2 rounded-full bg-espresso-800 px-5 py-3 text-sm font-extrabold text-cream-50" role="status"></div>
